@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'\nimport { useEffect, useMemo, useState } from 'react'
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -41,7 +41,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { activity, chartSeries, initialTasks, projects, type Task, type TaskStatus } from './data'
+import { activity, chartSeries, initialTasks, projects, type TaskStatus } from './data'
 
 type View = 'overview' | 'projects' | 'tasks' | 'deployments' | 'analytics' | 'activity' | 'team' | 'integrations' | 'settings'
 
@@ -87,7 +87,7 @@ function Metric({ label, value, delta, icon: Icon }: { label: string; value: str
 }
 
 function GlassButton({ children, onClick, icon: Icon, variant = 'ghost', ariaLabel }: {
-  children?: React.ReactNode
+  children?: ReactNode
   onClick?: () => void
   icon?: typeof Plus
   variant?: 'ghost' | 'solid'
