@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { syncGithubRepos, githubTokenForWorkspace } from '../../../lib/github-connection'
-import { getWorkspaceId } from '../../../lib/workspace'
+import { syncGithubRepos, githubTokenForWorkspace } from '@/lib/github-connection'
+import { getWorkspaceId } from '@/lib/workspace'
 
 export async function POST() {
   try {
