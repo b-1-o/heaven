@@ -442,3 +442,63 @@ kbd { border: 1px solid var(--border); background: rgba(0,0,0,.12); border-radiu
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+.glass-auth-card { width: 100%; background: rgba(17,19,20,.88) !important; border: 1px solid rgba(255,255,255,.1) !important; box-shadow: 0 28px 100px rgba(0,0,0,.46), inset 0 1px rgba(255,255,255,.06) !important; backdrop-filter: blur(28px) !important; border-radius: 20px !important; }
+.glass-auth-title { letter-spacing: -.035em !important; }
+.glass-auth-primary { background: #eceeef !important; color: #111 !important; border-radius: 10px !important; }
+.glass-auth-button { background: rgba(255,255,255,.035) !important; border-color: rgba(255,255,255,.1) !important; }
+.glass-auth-input { background: rgba(255,255,255,.035) !important; border-color: rgba(255,255,255,.1) !important; color: #f2f3f4 !important; border-radius: 9px !important; }
+
+.connect-hero { display: grid; grid-template-columns: 50px 1fr auto; gap: 16px; align-items: center; padding: 18px; border-radius: 18px; }
+.connect-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px; background: rgba(255,255,255,.045); border: 1px solid var(--border); color: var(--muted); }
+.connect-hero h2 { margin: 0 0 5px; font-size: 15px; letter-spacing: -.02em; }
+.connect-hero p { margin: 0; max-width: 680px; color: var(--muted); font-size: 9px; line-height: 1.55; }
+
+.repo-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 11px; }
+.repo-card { border-radius: 17px; padding: 14px; min-height: 220px; overflow: hidden; }
+.repo-topline { display:flex; align-items:center; justify-content:space-between; }
+.repo-mark { width: 30px; height:30px; display:grid; place-items:center; border-radius:9px; border:1px solid var(--border); color:var(--muted); background:rgba(255,255,255,.035); }
+.repo-private,.repo-public { font-size:8px; }
+.repo-private { color:#d3c8a3; } .repo-public { color:var(--muted); }
+.repo-name { margin-top:15px; background:transparent; border:0; padding:0; color:var(--text); cursor:pointer; font-size:13px; font-weight:640; letter-spacing:-.02em; text-align:left; }
+.repo-name:hover { text-decoration: underline; }
+.repo-card p { height:30px; margin:7px 0 0; color:var(--muted); font-size:8px; line-height:1.55; }
+.repo-meta { display:flex; justify-content:space-between; gap:8px; margin-top:18px; color:var(--faint); font-size:7px; }
+.repo-actions { display:flex; gap:7px; margin-top:13px; }
+.repo-commits { margin-top:11px; padding-top:8px; border-top:1px solid rgba(255,255,255,.05); display:grid; gap:3px; }
+.repo-commit { display:grid; grid-template-columns:8px 1fr auto; gap:8px; align-items:center; padding:7px 5px; border-radius:8px; text-decoration:none; color:var(--text); }
+.repo-commit:hover { background:rgba(255,255,255,.035); }
+.repo-commit > span:nth-child(2) { display:grid; gap:2px; min-width:0; }
+.repo-commit strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:8px; font-weight:560; }
+.repo-commit small { color:var(--faint); font-size:7px; }
+.repo-commit code { color:var(--faint); font:7px ui-monospace,SFMono-Regular,Menlo,monospace; }
+.commit-dot { width:5px; height:5px; border-radius:50%; background:#cdd0d2; }
+.skeleton-card { min-height: 220px; animation: skeleton 1.2s ease-in-out infinite alternate; }
+@keyframes skeleton { from { opacity:.35; } to { opacity:.7; } }
+
+.meeting-setup { padding-bottom: 4px; }
+.meeting-form { display:grid; grid-template-columns: 1.7fr 1.2fr .6fr auto; gap:10px; padding:16px 17px; align-items:end; }
+.meeting-form label { display:grid; gap:6px; }
+.meeting-form label > span { color:var(--faint); text-transform:uppercase; letter-spacing:.11em; font-size:7px; }
+.meeting-input { height:35px; width:100%; border-radius:9px; border:1px solid var(--border); background:rgba(255,255,255,.035); color:var(--text); padding:0 9px; outline:none; font-size:9px; }
+.meeting-input:focus { border-color:var(--border-strong); box-shadow:0 0 0 3px rgba(255,255,255,.03); }
+.meeting-submit { display:flex; align-items:flex-end; }
+.meeting-notice { margin:0 17px 14px; padding:9px 10px; border-radius:8px; border:1px solid var(--border); background:rgba(255,255,255,.025); color:var(--muted); font-size:8px; }
+.meeting-row { display:grid; grid-template-columns:1fr auto; gap:10px; padding:16px 17px; }
+
+.invite-panel { overflow:hidden; }
+.invite-form { display:grid; grid-template-columns:1fr auto; gap:8px; padding:16px 17px 12px; }
+
+.org-switcher { display:flex !important; }
+
+@media (max-width: 1180px) {
+  .repo-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .meeting-form { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 620px) {
+  .connect-hero { grid-template-columns: 1fr; }
+  .connect-hero .glass-button { width:100%; }
+  .repo-grid { grid-template-columns: 1fr; }
+  .meeting-form { grid-template-columns: 1fr; }
+  .invite-form { grid-template-columns: 1fr; }
+}
