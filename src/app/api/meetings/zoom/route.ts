@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { NextResponse } from 'next/server'
-import { getWorkspaceId } from '../../../lib/workspace'
-import { getIntegration, saveIntegration } from '../../../lib/integrations'
-import { getSql, ensureSchema } from '../../../lib/db'
+import { getWorkspaceId } from '@/lib/workspace'
+import { getIntegration, saveIntegration } from '@/lib/integrations'
+import { getSql, ensureSchema } from '@/lib/db'
 
 type CreateBody = {
   title: string
