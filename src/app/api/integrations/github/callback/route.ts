@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { exchangeGithubCode } from '../../../../../../lib/github'
-import { saveGithubConnection } from '../../../../../../lib/github-connection'
-import { getWorkspaceId } from '../../../../../../lib/workspace'
+import { exchangeGithubCode } from '@/lib/github'
+import { saveGithubConnection } from '@/lib/github-connection'
+import { getWorkspaceId } from '@/lib/workspace'
 
 export async function GET(request: Request) {
   const { userId } = await auth()
