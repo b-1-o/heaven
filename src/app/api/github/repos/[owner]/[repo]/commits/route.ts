@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { githubCommits } from '../../../../../lib/github'
-import { githubTokenForWorkspace } from '../../../../../lib/github-connection'
-import { getWorkspaceId } from '../../../../../lib/workspace'
+import { githubCommits } from '@/lib/github'
+import { githubTokenForWorkspace } from '@/lib/github-connection'
+import { getWorkspaceId } from '@/lib/workspace'
 
 export async function GET(
   _request: Request,
