@@ -48,7 +48,51 @@ export async function githubTokenForWorkspace(orgId: string) {
   }
 }
 
-export async function syncGithubRepos(orgId: string) {
+async function ensureRepositoryWebhook(
+  token: string,
+  repo: GithubRepo,
+  webhookUrl: string,
+) {
+  const secret = process.env.GITHUB_WEBHOOK_SECRET
+  if (!secret) return
+
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    Authorization: `Bearer ${token}`,
+    'X-GitHub-Api-Version': '2026-03-10',
+  }
+
+  const existingResponse = await fetch(
+    `https://api.github.com/repos/${encodeURIComponent(repo.owner.login)}/${encodeURIComponent(repo.name)}/hooks?per_page=100`,
+    { headers, cache: 'no-store' },
+  )
+  if (!existingResponse.ok) return
+
+  const existing = await existingResponse.json() as Array<{ config?: { url?: string }; active?: boolean }>
+  if (existing.some((hook) => hook.active && hook.config?.url === webhookUrl)) return
+
+  await fetch(
+    `https://api.github.com/repos/${encodeURIComponent(repo.owner.login)}/${encodeURIComponent(repo.name)}/hooks`,
+    {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'web',
+        active: true,
+        events: ['push', 'pull_request', 'workflow_run', 'deployment_status', 'issues', 'issue_comment'],
+        config: {
+          url: webhookUrl,
+          content_type: 'json',
+          secret,
+          insecure_ssl: '0',
+        },
+      }),
+      cache: 'no-store',
+    },
+  )
+}
+
+export async function syncGithubRepos(orgId: string, webhookUrl?: string) {
   const connection = await githubTokenForWorkspace(orgId)
   if (!connection) return []
 
@@ -73,6 +117,13 @@ export async function syncGithubRepos(orgId: string) {
         owner_login = EXCLUDED.owner_login,
         updated_at = NOW()
     `
+    if (webhookUrl) {
+      try {
+        await ensureRepositoryWebhook(connection.accessToken, repo, webhookUrl)
+      } catch {
+        // Webhook provisioning is best-effort; repository sync must still succeed.
+      }
+    }
   }
 
   return repos as GithubRepo[]
