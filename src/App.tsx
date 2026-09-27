@@ -10,8 +10,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  CircleDot,
-  Clock3,
   Command,
   Copy,
   Cpu,
@@ -26,9 +24,9 @@ import {
   Menu,
   Moon,
   MoreHorizontal,
-  Play,
   Plus,
   Rocket,
+  RefreshCcw,
   Search,
   ServerCog,
   Settings2,
@@ -584,9 +582,6 @@ function CommandPalette({ onClose, onNavigate }: { onClose: () => void; onNaviga
   )
 }
 
-function RotateIcon({ size = 15 }: { size?: number }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.3-6.4L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15.3 6.4L3 16" /><path d="M3 21v-5h5" /></svg>
-}
 
 export default function App() {
   const [view, setView] = useState<View>('overview')
