@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getSql, ensureSchema } from '../../../lib/db'
-import { githubTokenForWorkspace, syncGithubRepos } from '../../../lib/github-connection'
-import { getWorkspaceId } from '../../../lib/workspace'
+import { getSql, ensureSchema } from '@/lib/db'
+import { githubTokenForWorkspace, syncGithubRepos } from '@/lib/github-connection'
+import { getWorkspaceId } from '@/lib/workspace'
 
 export async function GET(request: Request) {
   const orgId = await getWorkspaceId()
