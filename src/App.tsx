@@ -712,15 +712,53 @@ function MeetingsView() {
 }
 
 function ActivityView() {
+  const [events, setEvents] = useState<Array<{
+    id: string
+    event_type: string
+    repository: string | null
+    actor_login: string | null
+    summary: string
+    occurred_at: string
+  }>>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/activity', { cache: 'no-store' })
+      const data = await response.json()
+      setEvents(data.events ?? [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void load() }, [])
+
   return (
     <div className="page-body">
-      <div className="section-toolbar"><div><span className="eyebrow">Audit trail</span><h1>Activity</h1><p>A clear timeline of every meaningful workspace action.</p></div><GlassButton icon={SlidersHorizontal}>Filter</GlassButton></div>
+      <div className="section-toolbar">
+        <div><span className="eyebrow">Live engineering stream</span><h1>Activity</h1><p>GitHub pushes, pull requests, CI runs and deployments flowing into the workspace.</p></div>
+        <GlassButton icon={RefreshCcw} onClick={() => void load()}>Refresh</GlassButton>
+      </div>
       <section className="panel timeline-panel">
-        {[...activity, ...activity.slice(0, 3)].map((entry, i) => <div className="timeline-row" key={entry.text + i}><div className="timeline-dot" /><div><strong>{entry.text}</strong><span>{entry.meta}</span></div><time>{i * 17 + 2}m ago</time></div>)}
+        {loading ? Array.from({ length: 5 }).map((_, i) => <div className="timeline-row timeline-skeleton" key={i}><div className="timeline-dot" /><div><strong>Loading GitHub event…</strong><span>Synchronizing workspace activity</span></div><time>—</time></div>) : null}
+        {!loading && events.length === 0 ? <EmptyState title="No GitHub activity yet" description="Connect GitHub and sync your repositories. HEAVEN will install webhooks so new activity can appear here automatically." /> : null}
+        {!loading && events.map((event) => (
+          <div className="timeline-row" key={event.id}>
+            <div className="timeline-dot" />
+            <div>
+              <strong>{event.summary}</strong>
+              <span>{event.actor_login ? `@${event.actor_login}` : 'GitHub'}{event.repository ? ` · ${event.repository}` : ''} · {new Date(event.occurred_at).toLocaleString()}</span>
+            </div>
+            <time>{event.event_type}</time>
+          </div>
+        ))}
       </section>
     </div>
   )
 }
+
 
 function TeamView() {
   const { organization, isLoaded } = useOrganization()
