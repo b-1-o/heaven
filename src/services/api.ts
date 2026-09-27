@@ -1,3 +1,5 @@
+import type { Task, TaskStatus } from '../data'
+
 export type ApiResult<T> = {
   data: T
   source: 'remote' | 'local'
@@ -15,13 +17,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T
     throw new Error('Remote API is not configured. Set VITE_API_URL to enable the HEAVEN API.')
   }
 
+  const headers = new Headers(init?.headers)
+  headers.set('Content-Type', 'application/json')
+
+  const auth = authHeaders()
+  if (auth.Authorization) headers.set('Authorization', auth.Authorization)
+
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-      ...(init?.headers || {}),
-    },
+    headers,
   })
 
   if (!response.ok) {
@@ -39,9 +43,9 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<{ id: string; name: string; email: string }>('/auth/me'),
-  tasks: () => request<import('../data').Task[]>('/tasks'),
-  updateTask: (id: string, status: import('../data').TaskStatus) =>
-    request<import('../data').Task>(`/tasks/${id}`, {
+  tasks: () => request<Task[]>('/tasks'),
+  updateTask: (id: string, status: TaskStatus) =>
+    request<Task>(`/tasks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
