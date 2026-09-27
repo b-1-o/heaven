@@ -41,7 +41,8 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { activity, chartSeries, initialTasks, projects, type TaskStatus } from './data'
+import { activity, chartSeries, projects, type TaskStatus } from './data'
+import { resetTasks, updateTaskStatus, useTasks } from './services/task-store'
 
 type View = 'overview' | 'projects' | 'tasks' | 'deployments' | 'analytics' | 'activity' | 'team' | 'integrations' | 'settings'
 
@@ -310,9 +311,11 @@ function ProjectsView({ onOpen }: { onOpen: (view: View) => void }) {
 }
 
 function TasksView() {
-  const [tasks, setTasks] = useState(initialTasks)
+  const tasks = useTasks()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'All' | TaskStatus>('All')
+  const [mode, setMode] = useState<'table' | 'kanban'>('table')
+  const [draggedId, setDraggedId] = useState<string | null>(null)
 
   const visible = useMemo(() => tasks.filter((task) => {
     const matchesQuery = `${task.title} ${task.project} ${task.assignee}`.toLowerCase().includes(query.toLowerCase())
@@ -321,14 +324,22 @@ function TasksView() {
   }), [tasks, query, filter])
 
   const moveTask = (id: string, status: TaskStatus) => {
-    setTasks((items) => items.map((item) => item.id === id ? { ...item, status, updated: 'now' } : item))
+    updateTaskStatus(id, status)
   }
+
+  const taskCount = visible.length
 
   return (
     <div className="page-body">
       <div className="section-toolbar">
-        <div><span className="eyebrow">Execution layer</span><h1>Tasks</h1><p>A keyboard-friendly workspace for product delivery.</p></div>
-        <GlassButton icon={Plus} variant="solid">Create task</GlassButton>
+        <div><span className="eyebrow">Execution layer</span><h1>Tasks</h1><p>Persistent, realtime work tracking with keyboard-friendly controls.</p></div>
+        <div className="section-actions">
+          <div className="segmented">
+            <button className={mode === 'table' ? 'selected' : ''} onClick={() => setMode('table')}>Table</button>
+            <button className={mode === 'kanban' ? 'selected' : ''} onClick={() => setMode('kanban')}>Kanban</button>
+          </div>
+          <GlassButton icon={Plus} variant="solid">Create task</GlassButton>
+        </div>
       </div>
 
       <div className="filter-row">
@@ -336,26 +347,69 @@ function TasksView() {
         <div className="segmented status-filters">
           {['All', ...taskColumns].map((item) => <button key={item} className={filter === item ? 'selected' : ''} onClick={() => setFilter(item as typeof filter)}>{item}</button>)}
         </div>
+        <GlassButton onClick={resetTasks}>Reset demo data</GlassButton>
       </div>
 
-      <section className="panel task-table">
-        <div className="table-head task-grid">
-          <span>Task</span><span>Project</span><span>Status</span><span>Priority</span><span>Owner</span><span>Updated</span>
-        </div>
-        {visible.map((task) => (
-          <div className="table-row task-grid" key={task.id}>
-            <div className="task-title"><span className={`task-check ${task.status === 'Done' ? 'done' : ''}`}>{task.status === 'Done' ? <Check size={12} /> : null}</span><strong>{task.title}</strong></div>
-            <span>{task.project}</span>
-            <select className={`inline-select ${statusTone[task.status]}`} value={task.status} onChange={(e) => moveTask(task.id, e.target.value as TaskStatus)} aria-label={`Status for ${task.title}`}>
-              {taskColumns.map((status) => <option value={status} key={status}>{status}</option>)}
-            </select>
-            <span className={`priority ${task.priority.toLowerCase()}`}><span />{task.priority}</span>
-            <span className="avatar">{task.assignee}</span>
-            <span>{task.updated}</span>
+      {mode === 'table' ? (
+        <section className="panel task-table">
+          <div className="table-head task-grid">
+            <span>Task</span><span>Project</span><span>Status</span><span>Priority</span><span>Owner</span><span>Updated</span>
           </div>
-        ))}
-        {visible.length === 0 ? <EmptyState title="No tasks found" description="Try a different search or clear the status filter." /> : null}
-      </section>
+          {visible.map((task) => (
+            <div className="table-row task-grid" key={task.id}>
+              <div className="task-title"><span className={`task-check ${task.status === 'Done' ? 'done' : ''}`}>{task.status === 'Done' ? <Check size={12} /> : null}</span><strong>{task.title}</strong></div>
+              <span>{task.project}</span>
+              <select className={`inline-select ${statusTone[task.status]}`} value={task.status} onChange={(e) => moveTask(task.id, e.target.value as TaskStatus)} aria-label={`Status for ${task.title}`}>
+                {taskColumns.map((status) => <option value={status} key={status}>{status}</option>)}
+              </select>
+              <span className={`priority ${task.priority.toLowerCase()}`}><span />{task.priority}</span>
+              <span className="avatar">{task.assignee}</span>
+              <span>{task.updated}</span>
+            </div>
+          ))}
+          {taskCount === 0 ? <EmptyState title="No tasks found" description="Try another search or clear the status filter." /> : null}
+        </section>
+      ) : (
+        <div className="kanban-grid">
+          {taskColumns.map((column) => {
+            const columnTasks = visible.filter((task) => task.status === column)
+            return (
+              <section
+                className={`kanban-column ${draggedId ? 'drop-ready' : ''}`}
+                key={column}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  if (draggedId) moveTask(draggedId, column)
+                  setDraggedId(null)
+                }}
+              >
+                <div className="kanban-head"><span>{column}</span><strong>{columnTasks.length}</strong></div>
+                <div className="kanban-stack">
+                  {columnTasks.map((task) => (
+                    <article
+                      className="kanban-card glass-card"
+                      draggable
+                      key={task.id}
+                      onDragStart={() => setDraggedId(task.id)}
+                      onDragEnd={() => setDraggedId(null)}
+                    >
+                      <div className="kanban-card-top">
+                        <span className={`priority ${task.priority.toLowerCase()}`}><span />{task.priority}</span>
+                        <MoreHorizontal size={15} className="muted-icon" />
+                      </div>
+                      <strong>{task.title}</strong>
+                      <span className="kanban-project">{task.project}</span>
+                      <div className="kanban-foot"><span className="avatar">{task.assignee}</span><span>{task.updated}</span></div>
+                    </article>
+                  ))}
+                  {columnTasks.length === 0 ? <div className="kanban-empty">Drop a task here</div> : null}
+                </div>
+              </section>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
