@@ -63,7 +63,22 @@ export async function ensureSchema() {
       )
     `
     await sql`CREATE INDEX IF NOT EXISTS heaven_repositories_org_idx ON heaven_repositories(org_id)`
+    await sql`
+      CREATE TABLE IF NOT EXISTS heaven_activity (
+        id UUID PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        github_event_id TEXT,
+        event_type TEXT NOT NULL,
+        repository TEXT,
+        actor_login TEXT,
+        summary TEXT NOT NULL,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+        occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `
     await sql`CREATE INDEX IF NOT EXISTS heaven_meetings_org_idx ON heaven_meetings(org_id, scheduled_at DESC)`
+    await sql`CREATE INDEX IF NOT EXISTS heaven_activity_org_idx ON heaven_activity(org_id, occurred_at DESC)`
+
   })()
   return schemaPromise
 }
