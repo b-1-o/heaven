@@ -388,7 +388,7 @@ function DeploymentsView() {
           <div><span>Region</span><strong>Global Edge</strong></div>
           <div><span>Health</span><strong>99.98%</strong></div>
         </div>
-        <div className="deployment-actions"><GlassButton icon={Terminal}>View logs</GlassButton><GlassButton icon={RotateIcon}>Rollback</GlassButton><GlassButton icon={ExternalLink}>Open production</GlassButton></div>
+        <div className="deployment-actions"><GlassButton icon={Terminal}>View logs</GlassButton><GlassButton icon={RefreshCcw}>Rollback</GlassButton><GlassButton icon={ExternalLink}>Open production</GlassButton></div>
       </div>
 
       <div className="dashboard-grid lower">
