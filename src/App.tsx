@@ -1,5 +1,8 @@
+'use client'
+
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
+import { OrganizationSwitcher, useOrganization } from '@clerk/nextjs'
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -16,6 +19,7 @@ import {
   Database,
   ExternalLink,
   Gauge,
+  Github,
   GitBranch,
   Globe2,
   LayoutDashboard,
@@ -35,6 +39,7 @@ import {
   Sparkles,
   Sun,
   Terminal,
+  Video,
   UserRound,
   Users,
   X,
@@ -43,13 +48,14 @@ import {
 import { activity, chartSeries, projects, type TaskStatus } from './data'
 import { resetTasks, updateTaskStatus, useTasks } from './services/task-store'
 
-type View = 'overview' | 'projects' | 'tasks' | 'deployments' | 'analytics' | 'activity' | 'team' | 'integrations' | 'settings'
+type View = 'overview' | 'repositories' | 'projects' | 'tasks' | 'deployments' | 'analytics' | 'activity' | 'meetings' | 'team' | 'integrations' | 'settings'
 
 const navigation: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'projects', label: 'Projects', icon: Layers3 },
+  { id: 'repositories', label: 'Repositories', icon: Github },
   { id: 'tasks', label: 'Tasks', icon: ListTodo },
   { id: 'deployments', label: 'Deployments', icon: Rocket },
+  { id: 'meetings', label: 'Meetings', icon: Video },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'activity', label: 'Activity', icon: ActivityIcon },
   { id: 'team', label: 'Team', icon: Users },
@@ -309,6 +315,111 @@ function ProjectsView({ onOpen }: { onOpen: (view: View) => void }) {
   )
 }
 
+function RepositoriesView() {
+  const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [connected, setConnected] = useState(false)
+  const [account, setAccount] = useState<{ login: string } | null>(null)
+  const [repositories, setRepositories] = useState<Array<{
+    github_id: number
+    name: string
+    full_name: string
+    private: boolean
+    html_url: string
+    default_branch: string
+    pushed_at: string | null
+    description: string | null
+  }>>([])
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [commits, setCommits] = useState<Record<string, Array<{ sha: string; html_url: string; commit: { message: string; author: { name: string | null; date: string | null } } }>>>({})
+
+  const load = async (sync = false) => {
+    setLoading(!sync)
+    if (sync) setSyncing(true)
+    try {
+      const response = await fetch(`/api/github/repos${sync ? '?sync=1' : ''}`, { cache: 'no-store' })
+      const data = await response.json()
+      setConnected(Boolean(data.connected))
+      setAccount(data.account ?? null)
+      setRepositories(data.repositories ?? [])
+    } finally {
+      setLoading(false)
+      setSyncing(false)
+    }
+  }
+
+  useEffect(() => { void load() }, [])
+
+  const openCommits = async (repo: string) => {
+    setExpanded(expanded === repo ? null : repo)
+    if (commits[repo]) return
+    const [owner, name] = repo.split('/')
+    const response = await fetch(`/api/github/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/commits`, { cache: 'no-store' })
+    const data = await response.json()
+    setCommits((current) => ({ ...current, [repo]: data.commits ?? [] }))
+  }
+
+  if (!connected) {
+    return (
+      <div className="page-body">
+        <div className="section-toolbar">
+          <div><span className="eyebrow">Source control</span><h1>Repositories</h1><p>Connect GitHub and turn HEAVEN into your live developer command center.</p></div>
+        </div>
+        <section className="connect-hero glass-card">
+          <div className="connect-icon"><Github size={26} /></div>
+          <div>
+            <h2>Connect GitHub</h2>
+            <p>HEAVEN will read your repositories, branches, commits and delivery activity on behalf of your account.</p>
+          </div>
+          <GlassButton icon={Github} variant="solid" onClick={() => { window.location.href = '/api/integrations/github/start' }}>Connect GitHub</GlassButton>
+        </section>
+      </div>
+    )
+  }
+
+  return (
+    <div className="page-body">
+      <div className="section-toolbar">
+        <div><span className="eyebrow">GitHub / {account?.login ?? 'connected'}</span><h1>Repositories</h1><p>{repositories.length} repositories available to this workspace.</p></div>
+        <div className="section-actions">
+          <GlassButton icon={RefreshCcw} onClick={() => void load(true)}>{syncing ? 'Syncing…' : 'Sync now'}</GlassButton>
+          <GlassButton icon={Plus} variant="solid" onClick={() => { window.location.href = '/api/integrations/github/start' }}>Reconnect</GlassButton>
+        </div>
+      </div>
+      {loading ? <div className="repo-grid">{Array.from({ length: 6 }).map((_, i) => <div className="repo-card glass-card skeleton-card" key={i} />)}</div> : null}
+      {!loading && repositories.length === 0 ? <EmptyState title="No repositories returned" description="Grant access to the repositories you want HEAVEN to observe, then sync again." /> : null}
+      <div className="repo-grid">
+        {repositories.map((repo) => (
+          <div className="repo-card glass-card" key={repo.github_id}>
+            <div className="repo-topline">
+              <span className="repo-mark"><Github size={15} /></span>
+              <span className={repo.private ? 'repo-private' : 'repo-public'}>{repo.private ? 'Private' : 'Public'}</span>
+            </div>
+            <button className="repo-name" onClick={() => void openCommits(repo.full_name)}>{repo.full_name}</button>
+            <p>{repo.description ?? 'No repository description.'}</p>
+            <div className="repo-meta"><span>{repo.default_branch}</span><span>{repo.pushed_at ? new Date(repo.pushed_at).toLocaleString() : 'No pushes yet'}</span></div>
+            <div className="repo-actions">
+              <GlassButton icon={ActivityIcon} onClick={() => void openCommits(repo.full_name)}>Commits</GlassButton>
+              <GlassButton icon={ExternalLink} onClick={() => { window.open(repo.html_url, '_blank', 'noopener,noreferrer') }}>GitHub</GlassButton>
+            </div>
+            {expanded === repo.full_name ? (
+              <div className="repo-commits">
+                {(commits[repo.full_name] ?? []).map((commit) => (
+                  <a className="repo-commit" href={commit.html_url} target="_blank" rel="noreferrer" key={commit.sha}>
+                    <span className="commit-dot" />
+                    <span><strong>{commit.commit.message.split('\n')[0]}</strong><small>{commit.commit.author?.name ?? 'GitHub'} · {commit.commit.author?.date ? new Date(commit.commit.author.date).toLocaleString() : 'recent'}</small></span>
+                    <code>{commit.sha.slice(0, 7)}</code>
+                  </a>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function TasksView() {
   const tasks = useTasks()
   const [query, setQuery] = useState('')
@@ -499,6 +610,107 @@ function AnalyticsView() {
   )
 }
 
+function MeetingsView() {
+  const [provider, setProvider] = useState<'zoom' | 'discord'>('zoom')
+  const [integrations, setIntegrations] = useState<Array<{ provider: string; account_name: string | null }>>([])
+  const [guilds, setGuilds] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedGuild, setSelectedGuild] = useState('')
+  const [title, setTitle] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [duration, setDuration] = useState('30')
+  const [loading, setLoading] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  const load = async () => {
+    const integrationsResponse = await fetch('/api/integrations', { cache: 'no-store' })
+    const data = await integrationsResponse.json()
+    setIntegrations(data.integrations ?? [])
+    const discordResponse = await fetch('/api/integrations/discord/guilds', { cache: 'no-store' })
+    const discord = await discordResponse.json()
+    setGuilds(discord.guilds ?? [])
+    setSelectedGuild(discord.selectedGuildId ?? '')
+  }
+
+  useEffect(() => { void load() }, [])
+
+  const connected = integrations.some((item) => item.provider === provider)
+  const connectUrl = provider === 'zoom' ? '/api/integrations/zoom/start' : '/api/integrations/discord/start'
+
+  const create = async () => {
+    setLoading(true)
+    setNotice('')
+    try {
+      const response = await fetch(`/api/meetings/${provider}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, startTime, durationMinutes: Number(duration) }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error ?? 'Meeting creation failed')
+      setNotice(`${provider === 'zoom' ? 'Zoom' : 'Discord'} meeting created`)
+      setTitle('')
+      if (data.joinUrl) window.open(data.joinUrl, '_blank', 'noopener,noreferrer')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Meeting creation failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const selectGuild = async (guildId: string) => {
+    const guild = guilds.find((item) => item.id === guildId)
+    setSelectedGuild(guildId)
+    await fetch('/api/integrations/discord/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ guildId, guildName: guild?.name }),
+    })
+  }
+
+  return (
+    <div className="page-body">
+      <div className="section-toolbar">
+        <div><span className="eyebrow">Team communication</span><h1>Meetings</h1><p>Create and launch team conferences without leaving HEAVEN.</p></div>
+        <div className="segmented"><button className={provider === 'zoom' ? 'selected' : ''} onClick={() => setProvider('zoom')}>Zoom</button><button className={provider === 'discord' ? 'selected' : ''} onClick={() => setProvider('discord')}>Discord</button></div>
+      </div>
+
+      {!connected ? (
+        <section className="connect-hero glass-card">
+          <div className="connect-icon"><Video size={26} /></div>
+          <div><h2>Connect {provider === 'zoom' ? 'Zoom' : 'Discord'}</h2><p>{provider === 'zoom' ? 'Authorize HEAVEN to schedule meetings on your Zoom account.' : 'Authorize HEAVEN to connect your Discord account and choose a server where the bot is installed.'}</p></div>
+          <GlassButton icon={Video} variant="solid" onClick={() => { window.location.href = connectUrl }}>Connect {provider === 'zoom' ? 'Zoom' : 'Discord'}</GlassButton>
+        </section>
+      ) : null}
+
+      {provider === 'discord' && connected ? (
+        <section className="panel meeting-setup">
+          <div className="panel-head"><div><span className="eyebrow">Discord workspace</span><h2>Choose a server</h2></div></div>
+          <div className="meeting-row">
+            <select className="meeting-input" value={selectedGuild} onChange={(event) => void selectGuild(event.target.value)}>
+              <option value="">Select server…</option>
+              {guilds.map((guild) => <option value={guild.id} key={guild.id}>{guild.name}</option>)}
+            </select>
+            <span className="setting-value">{selectedGuild ? 'Selected' : 'Required'}</span>
+          </div>
+        </section>
+      ) : null}
+
+      {connected ? (
+        <section className="panel meeting-setup">
+          <div className="panel-head"><div><span className="eyebrow">New conference</span><h2>Schedule meeting</h2></div><span className="live-dot"><span />Connected</span></div>
+          <div className="meeting-form">
+            <label><span>Title</span><input className="meeting-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weekly product sync" /></label>
+            <label><span>Start</span><input className="meeting-input" type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></label>
+            <label><span>Duration</span><input className="meeting-input" type="number" min="1" max="1440" value={duration} onChange={(e) => setDuration(e.target.value)} /></label>
+            <div className="meeting-submit"><GlassButton icon={Video} variant="solid" onClick={() => void create()}>{loading ? 'Creating…' : 'Create conference'}</GlassButton></div>
+          </div>
+          {notice ? <div className="meeting-notice">{notice}</div> : null}
+        </section>
+      ) : null}
+    </div>
+  )
+}
+
 function ActivityView() {
   return (
     <div className="page-body">
@@ -511,33 +723,78 @@ function ActivityView() {
 }
 
 function TeamView() {
-  const team = [
-    ['ER', 'Erik', 'Frontend / Product', 'Online'],
-    ['MK', 'Mika', 'Design / Systems', 'Online'],
-    ['JS', 'Jordan', 'Backend / Infra', 'Away'],
-    ['AL', 'Alex', 'QA / Accessibility', 'Online'],
-  ]
+  const { organization, isLoaded } = useOrganization()
+  const [email, setEmail] = useState('')
+  const [notice, setNotice] = useState('')
+
+  const invite = async () => {
+    if (!organization || !email.trim()) return
+    try {
+      await organization.inviteMember({ emailAddress: email.trim(), role: 'org:member' })
+      setNotice(`Invitation sent to ${email.trim()}`)
+      setEmail('')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not send invitation')
+    }
+  }
+
   return (
     <div className="page-body">
-      <div className="section-toolbar"><div><span className="eyebrow">Workspace members</span><h1>Team</h1><p>People, roles and access in one place.</p></div><GlassButton icon={Plus} variant="solid">Invite member</GlassButton></div>
+      <div className="section-toolbar">
+        <div><span className="eyebrow">Workspace members</span><h1>Team</h1><p>Build a workspace, invite collaborators and keep roles centralized.</p></div>
+        <OrganizationSwitcher appearance={{ elements: { rootBox: 'org-switcher' } }} />
+      </div>
+      <section className="panel invite-panel">
+        <div className="panel-head"><div><span className="eyebrow">Invite collaborator</span><h2>Bring your team into HEAVEN</h2></div></div>
+        <div className="invite-form">
+          <input className="meeting-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@example.com" />
+          <GlassButton icon={Plus} variant="solid" onClick={() => void invite()}>{isLoaded ? 'Send invitation' : 'Loading…'}</GlassButton>
+        </div>
+        {notice ? <div className="meeting-notice">{notice}</div> : null}
+      </section>
       <section className="panel team-table">
-        {team.map(([initials, name, role, state]) => <div className="team-row" key={name}><span className="avatar large">{initials}</span><div><strong>{name}</strong><span>{role}</span></div><span className={`presence ${state.toLowerCase()}`}><span />{state}</span><span className="team-role">Editor</span><MoreHorizontal size={17} className="muted-icon" /></div>)}
+        <div className="team-row"><span className="avatar large">H</span><div><strong>Active workspace</strong><span>{organization?.name ?? 'Personal workspace'}</span></div><span className="presence online"><span />Connected</span><span className="team-role">Workspace</span><MoreHorizontal size={17} className="muted-icon" /></div>
       </section>
     </div>
   )
 }
 
+
 function IntegrationsView() {
-  const integrations = [['GitHub', GitBranch, 'Source control and pull requests', 'Connected'], ['Vercel', Globe2, 'Deployments and previews', 'Connected'], ['Postgres', Database, 'Primary application data', 'Connected'], ['Sentry', AlertTriangle, 'Runtime errors and traces', 'Available']]
+  const [items, setItems] = useState<Array<{ provider: string; account_name: string | null }>>([])
+  useEffect(() => {
+    fetch('/api/integrations', { cache: 'no-store' }).then((response) => response.json()).then((data) => setItems(data.integrations ?? []))
+  }, [])
+
+  const connected = (provider: string) => items.some((item) => item.provider === provider)
+  const rows = [
+    ['GitHub', Github, 'Repositories, commits and source activity', 'github'],
+    ['Zoom', Video, 'Create and manage team meetings', 'zoom'],
+    ['Discord', Users, 'Connect a server and schedule events', 'discord'],
+    ['Postgres', Database, 'Persistent HEAVEN workspace data', 'database'],
+  ] as const
+
   return (
     <div className="page-body">
-      <div className="section-toolbar"><div><span className="eyebrow">External systems</span><h1>Integrations</h1><p>Connect the tools that power your delivery loop.</p></div></div>
+      <div className="section-toolbar"><div><span className="eyebrow">Connected systems</span><h1>Integrations</h1><p>HEAVEN keeps credentials server-side and turns connected services into one operating surface.</p></div></div>
       <div className="integration-grid">
-        {integrations.map(([name, Icon, description, state]) => { const IntegrationIcon = Icon as typeof GitBranch; return <div className="integration-card glass-card" key={name as string}><div className="integration-icon"><IntegrationIcon size={19} /></div><div className="integration-copy"><strong>{name as string}</strong><p>{description as string}</p></div><span className={state === 'Connected' ? 'connected' : 'available'}>{state as string}</span><GlassButton icon={state === 'Connected' ? Settings2 : Plus} ariaLabel={`${state} ${name}`} /></div> })}
+        {rows.map(([name, Icon, description, key]) => {
+          const IntegrationIcon = Icon as typeof Github
+          const isConnected = connected(key)
+          return (
+            <div className="integration-card glass-card" key={name}>
+              <div className="integration-icon"><IntegrationIcon size={19} /></div>
+              <div className="integration-copy"><strong>{name}</strong><p>{description}</p></div>
+              <span className={isConnected ? 'connected' : 'available'}>{isConnected ? 'Connected' : key === 'database' ? 'Environment' : 'Not connected'}</span>
+              {key === 'github' ? <GlassButton icon={Github} onClick={() => { window.location.href = '/api/integrations/github/start' }}>Connect</GlassButton> : key === 'zoom' ? <GlassButton icon={Video} onClick={() => { window.location.href = '/api/integrations/zoom/start' }}>Connect</GlassButton> : key === 'discord' ? <GlassButton icon={Users} onClick={() => { window.location.href = '/api/integrations/discord/start' }}>Connect</GlassButton> : <GlassButton icon={Settings2}>View</GlassButton>}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
+
 
 function SettingsView({ dark, setDark }: { dark: boolean; setDark: (value: boolean) => void }) {
   return (
@@ -626,11 +883,13 @@ export default function App() {
   const renderView = () => {
     switch (view) {
       case 'overview': return <Overview onView={navigate} />
+      case 'repositories': return <RepositoriesView />
       case 'projects': return <ProjectsView onOpen={navigate} />
       case 'tasks': return <TasksView />
       case 'deployments': return <DeploymentsView />
       case 'analytics': return <AnalyticsView />
       case 'activity': return <ActivityView />
+      case 'meetings': return <MeetingsView />
       case 'team': return <TeamView />
       case 'integrations': return <IntegrationsView />
       case 'settings': return <SettingsView dark={dark} setDark={setDark} />
@@ -678,7 +937,7 @@ export default function App() {
         <section className="page-header">
           <div>
             <div className="status-line"><span className="live-dot"><span />Workspace online</span><span>Updated just now</span></div>
-            <h1>{view === 'overview' ? 'Good afternoon, Erik.' : formatTitle(view)}</h1>
+            <h1>{view === 'overview' ? 'Good afternoon.' : formatTitle(view)}</h1>
             {view === 'overview' ? <p>Everything important, visible at a glance.</p> : null}
           </div>
           <div className="page-header-actions">
