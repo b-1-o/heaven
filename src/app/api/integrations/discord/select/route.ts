@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getWorkspaceId } from '../../../../lib/workspace'
-import { getIntegration, saveIntegration } from '../../../../lib/integrations'
+import { getWorkspaceId } from '@/lib/workspace'
+import { getIntegration, saveIntegration } from '@/lib/integrations'
 
 export async function POST(request: Request) {
   try {
