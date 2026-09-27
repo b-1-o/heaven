@@ -502,3 +502,5 @@ kbd { border: 1px solid var(--border); background: rgba(0,0,0,.12); border-radiu
   .meeting-form { grid-template-columns: 1fr; }
   .invite-form { grid-template-columns: 1fr; }
 }
+
+.timeline-skeleton { opacity: .55; animation: skeleton 1.1s ease-in-out infinite alternate; }
