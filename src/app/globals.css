@@ -1,4 +1,4 @@
-@import '../../styles.css';
+@import '../styles.css';
 
 .auth-shell {
   min-height: 100vh;
