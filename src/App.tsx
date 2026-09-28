@@ -292,29 +292,46 @@ function Overview({ onView }: { onView: (view: View) => void }) {
 }
 
 function ProjectsView({ onOpen }: { onOpen: (view: View) => void }) {
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState<'All' | 'Active' | 'Review' | 'Paused'>('All')
+  const filtered = useMemo(() => projects.filter((project) => {
+    const haystack = (project.name + ' ' + project.description + ' ' + project.stack.join(' ')).toLowerCase()
+    return haystack.includes(query.trim().toLowerCase()) && (status === 'All' || project.status === status)
+  }), [query, status])
+
   return (
     <div className="page-body">
       <div className="section-toolbar">
         <div>
           <span className="eyebrow">Workspace / portfolio</span>
           <h1>Projects</h1>
-          <p>Track product delivery across the workspace.</p>
+          <p>One place for products, delivery, owners, repositories and team context.</p>
         </div>
-        <GlassButton icon={Plus} variant="solid">New project</GlassButton>
+        <div className="section-actions">
+          <GlassButton icon={Users} onClick={() => onOpen('people')}>Find people</GlassButton>
+          <GlassButton icon={Plus} variant="solid" onClick={() => onOpen('tasks')}>New project</GlassButton>
+        </div>
       </div>
       <div className="filter-row">
-        <div className="search-field"><Search size={15} /><input placeholder="Search projects..." /><kbd>/</kbd></div>
-        <GlassButton icon={SlidersHorizontal}>Filters</GlassButton>
-        <GlassButton icon={MoreHorizontal} ariaLabel="More project actions" />
+        <div className="search-field wide"><Search size={15} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search projects, stacks or descriptions…" /><kbd>/</kbd></div>
+        <div className="segmented status-filters">
+          {['All', 'Active', 'Review', 'Paused'].map((item) => <button key={item} className={status === item ? 'selected' : ''} onClick={() => setStatus(item as typeof status)}>{item}</button>)}
+        </div>
+        <GlassButton icon={Video} onClick={() => onOpen('rooms')}>Open rooms</GlassButton>
       </div>
       <div className="project-grid">
-        {projects.map((project) => <ProjectCard {...project} key={project.id} onOpen={() => onOpen('tasks')} />)}
-        <button className="project-card add-card" onClick={() => undefined}>
+        {filtered.map((project) => <ProjectCard {...project} key={project.id} onOpen={() => onOpen('tasks')} />)}
+        <button className="project-card add-card" onClick={() => onOpen('tasks')}>
           <div className="empty-orb"><Plus size={18} /></div>
           <strong>Create a project</strong>
-          <span>Start with a clean workspace.</span>
+          <span>Start with tasks, owners and a delivery board.</span>
         </button>
       </div>
+      <section className="project-insight-grid">
+        <div className="glass-card project-insight"><span className="eyebrow">Delivery load</span><strong>{projects.reduce((sum, project) => sum + project.tasks, 0)} active tasks</strong><span>Across {projects.length} workspace projects</span></div>
+        <div className="glass-card project-insight"><span className="eyebrow">Average progress</span><strong>{Math.round(projects.reduce((sum, project) => sum + project.progress, 0) / projects.length)}%</strong><span>Weighted across current delivery boards</span></div>
+        <div className="glass-card project-insight"><span className="eyebrow">Team access</span><strong>8 people</strong><span>Search contributors from the workspace directory</span></div>
+      </section>
     </div>
   )
 }
@@ -978,17 +995,19 @@ export default function App() {
           </div>
         </header>
 
-        <section className="page-header">
-          <div>
-            <div className="status-line"><span className="live-dot"><span />Workspace online</span><span>Updated just now</span></div>
-            <h1>{view === 'overview' ? 'Good afternoon.' : formatTitle(view)}</h1>
-            {view === 'overview' ? <p>Everything important, visible at a glance.</p> : null}
-          </div>
-          <div className="page-header-actions">
-            <GlassButton icon={Bell} onClick={() => notify('Notifications are clear')}>Alerts</GlassButton>
-            <GlassButton icon={Plus} variant="solid" onClick={() => notify('Quick action ready')}>Quick action</GlassButton>
-          </div>
-        </section>
+        {view === 'overview' ? (
+          <section className="page-header">
+            <div>
+              <div className="status-line"><span className="live-dot"><span />Workspace online</span><span>Updated just now</span></div>
+              <h1>Good afternoon.</h1>
+              <p>Everything important, visible at a glance.</p>
+            </div>
+            <div className="page-header-actions">
+              <GlassButton icon={Bell} onClick={() => notify('Notifications are clear')}>Alerts</GlassButton>
+              <GlassButton icon={Plus} variant="solid" onClick={() => navigate('rooms')}>Open conference</GlassButton>
+            </div>
+          </section>
+        ) : null}
 
         {renderView()}
 
