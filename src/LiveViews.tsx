@@ -216,12 +216,12 @@ function OverviewTrend({ live }: { live: DashboardData | null }) {
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Delivery momentum chart">
             <defs>
               <linearGradient id="overviewLine" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="rgba(255,255,255,.24)" />
-                <stop offset="100%" stopColor="rgba(255,255,255,.98)" />
+                <stop offset="0%" stopColor="var(--chart-line-start)" />
+                <stop offset="100%" stopColor="var(--chart-line-end)" />
               </linearGradient>
               <linearGradient id="overviewArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="rgba(255,255,255,.14)" />
-                <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                <stop offset="0%" stopColor="var(--chart-area-start)" />
+                <stop offset="100%" stopColor="var(--chart-area-end)" />
               </linearGradient>
               <filter id="overviewGlow" x="-200%" y="-200%" width="400%" height="400%">
                 <feGaussianBlur stdDeviation=".65" result="blur" />
@@ -231,10 +231,10 @@ function OverviewTrend({ live }: { live: DashboardData | null }) {
                 </feMerge>
               </filter>
               <radialGradient id="overviewStarGlow">
-                <stop offset="0%" stopColor="rgba(255,255,255,.62)" />
-                <stop offset="34%" stopColor="rgba(255,255,255,.22)" />
-                <stop offset="72%" stopColor="rgba(255,255,255,.07)" />
-                <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                <stop offset="0%" stopColor="var(--chart-star-strong)" />
+                <stop offset="34%" stopColor="var(--chart-star-mid)" />
+                <stop offset="72%" stopColor="var(--chart-star-soft)" />
+                <stop offset="100%" stopColor="var(--chart-star-end)" />
               </radialGradient>
             </defs>
             <polygon points={`0,100 ${points} 100,100`} fill="url(#overviewArea)" />
