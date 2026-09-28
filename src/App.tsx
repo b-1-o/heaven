@@ -47,6 +47,7 @@ import {
 } from 'lucide-react'
 import { activity, chartSeries, projects, type TaskStatus } from './data'
 import { resetTasks, updateTaskStatus, useTasks } from './services/task-store'
+import { LiveOverview, LiveActivityView, LiveDeploymentsView, LiveAnalyticsView, LiveMeetingsView, LiveTeamView } from './LiveViews'
 
 type View = 'overview' | 'repositories' | 'projects' | 'tasks' | 'deployments' | 'analytics' | 'activity' | 'meetings' | 'team' | 'integrations' | 'settings'
 
@@ -920,15 +921,15 @@ export default function App() {
 
   const renderView = () => {
     switch (view) {
-      case 'overview': return <Overview onView={navigate} />
+      case 'overview': return <LiveOverview onView={navigate} />
       case 'repositories': return <RepositoriesView />
       case 'projects': return <ProjectsView onOpen={navigate} />
       case 'tasks': return <TasksView />
-      case 'deployments': return <DeploymentsView />
-      case 'analytics': return <AnalyticsView />
-      case 'activity': return <ActivityView />
-      case 'meetings': return <MeetingsView />
-      case 'team': return <TeamView />
+      case 'deployments': return <LiveDeploymentsView />
+      case 'analytics': return <LiveAnalyticsView />
+      case 'activity': return <LiveActivityView />
+      case 'meetings': return <LiveMeetingsView />
+      case 'team': return <LiveTeamView />
       case 'integrations': return <IntegrationsView />
       case 'settings': return <SettingsView dark={dark} setDark={setDark} />
     }
