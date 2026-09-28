@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     const sql = getSql()
     const repo = payload.repository?.full_name ?? null
     const candidateRows = repo
-      ? await sql`SELECT DISTINCT org_id FROM heaven_repositories WHERE full_name = ${repo}`
+      ? (await sql`SELECT DISTINCT org_id FROM heaven_repositories WHERE full_name = ${repo}`) as unknown as Array<{ org_id: string }>
       : []
 
     const orgIds = candidateRows.map((row) => String(row.org_id))
