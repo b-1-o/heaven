@@ -18,11 +18,9 @@
 - Next.js 16.3
 - React 19
 - TypeScript
-- Clerk
 - Neon Postgres
 - GitHub OAuth
 - Zoom OAuth
-- Discord OAuth + bot API
 - Vercel for production
 
 ## Local
@@ -35,10 +33,6 @@ npm run dev
 Copy `.env.example` to `.env.local` and fill the service credentials.
 
 ## Production services
-
-### Clerk
-
-Enable email sign-up, email verification at sign-up, email sign-in, Organizations and Organization invitations.
 
 ### Neon
 
@@ -59,10 +53,6 @@ Create a Zoom OAuth app and use:
 `https://YOUR-DOMAIN/api/integrations/zoom/callback`
 
 The app needs permission to create meetings for the connected user.
-
-### Discord
-
-Create a Discord application/bot, set the OAuth callback, install the bot in the target server, and give it the permissions required to create scheduled events.
 
 ## CI / deployment
 
