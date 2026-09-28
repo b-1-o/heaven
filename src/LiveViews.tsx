@@ -242,12 +242,6 @@ function OverviewTrend({ live }: { live: DashboardData | null }) {
             <path id="overview-motion-path" d={linePath} fill="none" stroke="none" />
             <g className="overview-orbit">
               <circle r="3.8" fill="url(#overviewStarGlow)" className="overview-orbit-halo" />
-              <g className="overview-star-rays">
-                <line x1="0" y1="-3.8" x2="0" y2="-1.45" />
-                <line x1="0" y1="3.8" x2="0" y2="1.45" />
-                <line x1="-3.8" y1="0" x2="-1.45" y2="0" />
-                <line x1="3.8" y1="0" x2="1.45" y2="0" />
-              </g>
               <circle r=".32" className="overview-orbit-core" />
               <circle r=".08" className="overview-orbit-pulse" />
               <animateMotion dur="5.8s" repeatCount="indefinite" rotate="auto">
