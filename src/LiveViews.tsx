@@ -152,7 +152,7 @@ function ActivityGlyph({ type }: { type: ActivityItem['type'] }) {
   return <Rocket size={15} />
 }
 
-export function LiveOverview({ onView }: { onView: (view: string) => void }) {
+export function LiveOverview({ onView }: { onView: (view: 'repositories' | 'activity') => void }) {
   const { data, loading, error, reload } = useGithubDashboard()
 
   if (loading) {
@@ -491,6 +491,7 @@ export function LiveTeamView() {
   const [workspaceName, setWorkspaceName] = useState('')
   const [creating, setCreating] = useState(false)
   const [notice, setNotice] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
 
   const createWorkspace = async () => {
     if (!workspaceName.trim()) {
@@ -534,7 +535,15 @@ export function LiveTeamView() {
           <p>Invitations, roles, removals and pending requests are handled by the connected Clerk Organization control panel.</p>
           <div className="invite-form">
             <button className="glass-button" onClick={() => window.location.href = '/organization-profile'}><Users size={15} />Manage organization</button>
-            {organization ? <button className="glass-button solid" onClick={() => organization.inviteMember({ emailAddress: window.prompt('Email address') || '', role: 'org:member' }).catch(() => undefined)}><Plus size={15} />Invite member</button> : null}
+            {organization ? <>
+              <input className="meeting-input" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="teammate@example.com" />
+              <button className="glass-button solid" onClick={() => {
+                if (!inviteEmail.trim()) return
+                void organization.inviteMember({ emailAddress: inviteEmail.trim(), role: 'org:member' })
+                  .then(() => { setInviteEmail(''); setNotice('Invitation sent') })
+                  .catch((error) => setNotice(error instanceof Error ? error.message : 'Could not send invitation'))
+              }}><Plus size={15} />Invite member</button>
+            </> : null}
           </div>
         </section>
       </div>
