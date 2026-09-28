@@ -258,6 +258,11 @@ function ZoomMeetingEmbed({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const clientRef = useRef<ZoomEmbeddedClient | null>(null)
   const [status, setStatus] = useState<'loading' | 'joining' | 'live' | 'error'>('loading')
+  const onErrorRef = useRef(onError)
+
+  useEffect(() => {
+    onErrorRef.current = onError
+  }, [onError])
 
   useEffect(() => {
     let cancelled = false
@@ -294,7 +299,7 @@ function ZoomMeetingEmbed({
         if (cancelled) return
         const message = error instanceof Error ? error.message : 'Unable to join Zoom'
         setStatus('error')
-        onError(message)
+        onErrorRef.current(message)
       }
     }
 
@@ -309,7 +314,7 @@ function ZoomMeetingEmbed({
         if (result && typeof result.then === 'function') void result.catch(() => {})
       } catch {}
     }
-  }, [meetingNumber, password, onError])
+  }, [meetingNumber, password])
 
   return (
     <div className="zoom-embed-shell">
