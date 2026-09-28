@@ -236,8 +236,8 @@ function OverviewTrend({ live }: { live: DashboardData | null }) {
             <path id="overview-motion-path" d={linePath} fill="none" stroke="none" />
             <g className="overview-orbit" filter="url(#overviewGlow)">
               <circle r="1.15" className="overview-orbit-halo" />
-              <circle r=".48" className="overview-orbit-core" />
-              <circle r=".12" className="overview-orbit-pulse" />
+              <circle r=".32" className="overview-orbit-core" />
+              <circle r=".08" className="overview-orbit-pulse" />
               <animateMotion dur="5.8s" repeatCount="indefinite" rotate="auto">
                 <mpath href="#overview-motion-path" />
               </animateMotion>
