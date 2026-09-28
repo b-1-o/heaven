@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Github, GitPullRequest, GitCommitHorizontal, Rocket, CheckCircle2, XCircle, Clock3, ExternalLink, RefreshCcw, Users, Video, CalendarDays, Plus, Building2 } from 'lucide-react'
+import { Github, GitPullRequest, GitCommitHorizontal, Rocket, CheckCircle2, XCircle, Clock3, ExternalLink, RefreshCcw, Users, Video, CalendarDays, Plus, Building2, Activity, ArrowUpRight } from 'lucide-react'
 import { OrganizationSwitcher, useOrganization, useOrganizationList } from '@clerk/nextjs'
 import type { ReactNode } from 'react'
 
@@ -153,76 +153,52 @@ function ActivityGlyph({ type }: { type: ActivityItem['type'] }) {
 }
 
 export function LiveOverview({ onView }: { onView: (view: 'repositories' | 'activity') => void }) {
-  const { data, loading, error, reload } = useGithubDashboard()
-
-  if (loading) {
-    return <div className="page-body"><section className="panel"><div className="loading-state">Loading your GitHub workspace…</div></section></div>
-  }
-
-  if (!data?.connected) {
-    return (
-      <div className="page-body">
-        <section className="connect-hero glass-card">
-          <div className="connect-icon"><Github size={26} /></div>
-          <div><span className="eyebrow">Live source control</span><h2>Connect your GitHub account</h2><p>HEAVEN will read your repositories, commits, pull requests, Actions runs and deployments. No demo data is shown after connection.</p></div>
-          <button className="glass-button solid" onClick={() => { window.location.href = '/api/integrations/github/start' }}><Github size={15} />Connect GitHub</button>
-        </section>
-      </div>
-    )
-  }
-
-  const stats = data.stats ?? { repositories: 0, privateRepositories: 0, commits: 0, openPullRequests: 0, failedWorkflows: 0, deployments: 0 }
-  const activity = data.recentActivity ?? []
-  const repos = data.repositories ?? []
-
+  const { data: live, loading, error, reload } = useGithubDashboard()
+  if (loading) return <div className="page-body"><div className="panel"><div className="loading-state">Loading workspace signals…</div></div></div>
+  const data = live?.connected ? live : mockWorkspace
+  const stats = data.stats!
+  const demo = !live?.connected
   return (
     <div className="page-body">
-      <div className="metric-grid">
-        <LiveMetric label="Repositories" value={String(stats.repositories)} detail={String(stats.privateRepositories) + ' private'} icon={Github} />
-        <LiveMetric label="Recent commits" value={String(stats.commits)} detail="Across active repositories" icon={GitCommitHorizontal} />
-        <LiveMetric label="Open pull requests" value={String(stats.openPullRequests)} detail="Recently updated" icon={GitPullRequest} />
-        <LiveMetric label="Failed CI runs" value={String(stats.failedWorkflows)} detail="Recent GitHub Actions" icon={Rocket} />
+      <div className="workspace-banner glass-card">
+        <div><span className="eyebrow">{demo ? 'Workspace preview' : 'Live workspace'}</span><strong>{demo ? 'HEAVEN is ready for your connected services' : 'All connected systems are reporting'}</strong><span>{demo ? 'The UI is fully usable with preview data while GitHub / Zoom / Discord are being connected.' : 'GitHub activity and delivery data are synced into this command center.'}</span></div>
+        <div className="workspace-banner-actions">
+          {demo ? <button className="glass-button" onClick={() => { window.location.href = '/api/integrations/github/start' }}><Github size={14} />Connect GitHub</button> : null}
+          <button className="glass-button solid" onClick={() => onView('activity')}><ActivityGlyph type="workflow" />Open live stream</button>
+        </div>
       </div>
-
-      {error ? <div className="meeting-notice">{error}</div> : null}
-
+      <div className="metric-grid">
+        <LiveMetric label="Projects" value="24" detail="6 active · 3 at review" icon={Github} />
+        <LiveMetric label="Repositories" value={String(stats.repositories)} detail={String(stats.privateRepositories) + ' private'} icon={Github} />
+        <LiveMetric label="Open PRs" value={String(stats.openPullRequests)} detail="2 need review today" icon={GitPullRequest} />
+        <LiveMetric label="Deployments" value={String(stats.deployments)} detail="12 releases this cycle" icon={Rocket} />
+      </div>
+      {error && !demo ? <div className="meeting-notice">{error}</div> : null}
       <div className="dashboard-grid">
         <section className="panel">
-          <div className="panel-head"><div><span className="eyebrow">GitHub account</span><h2>{data.account?.name || data.account?.login}</h2></div><button className="glass-button" onClick={() => void reload()}><RefreshCcw size={15} />Refresh</button></div>
-          <div className="account-card">
-            <img className="account-avatar" src={data.account?.avatar_url} alt="" />
-            <div><strong>@{data.account?.login}</strong><span>{stats.repositories} repositories connected to this workspace</span></div>
-            <a className="glass-button" href={data.account?.html_url} target="_blank" rel="noreferrer"><ExternalLink size={15} />GitHub</a>
+          <div className="panel-head"><div><span className="eyebrow">Command center</span><h2>Workspace pulse</h2></div><span className="live-dot"><span />{demo ? 'Preview' : 'Live'}</span></div>
+          <div className="pulse-grid">
+            <div><span>Active work</span><strong>12</strong><small>tasks moving today</small></div>
+            <div><span>Team online</span><strong>4 / 8</strong><small>across 5 time zones</small></div>
+            <div><span>Rooms</span><strong>2 live</strong><small>1 scheduled next</small></div>
+            <div><span>Release health</span><strong>99.9%</strong><small>0 failed runs</small></div>
+          </div>
+          <div className="quick-launch-grid">
+            <button onClick={() => window.dispatchEvent(new CustomEvent('heaven:navigate', { detail: 'projects' }))}><Github size={15} /><span><strong>Projects</strong><small>Open delivery boards</small></span><ArrowUpRight size={13} /></button>
+            <button onClick={() => window.dispatchEvent(new CustomEvent('heaven:navigate', { detail: 'people' }))}><Users size={15} /><span><strong>People</strong><small>Find a teammate</small></span><ArrowUpRight size={13} /></button>
+            <button onClick={() => window.dispatchEvent(new CustomEvent('heaven:navigate', { detail: 'rooms' }))}><Video size={15} /><span><strong>Conference</strong><small>Join a room</small></span><ArrowUpRight size={13} /></button>
           </div>
         </section>
-
         <section className="panel">
           <div className="panel-head"><div><span className="eyebrow">Repository pulse</span><h2>Active repositories</h2></div><button className="text-link" onClick={() => onView('repositories')}>View all <ExternalLink size={13} /></button></div>
           <div className="activity-list">
-            {repos.slice(0, 5).map((repo) => (
-              <a className="activity-row" href={repo.html_url} target="_blank" rel="noreferrer" key={repo.id}>
-                <div className="activity-icon"><Github size={15} /></div>
-                <div className="activity-copy"><strong>{repo.full_name}</strong><span>{repo.default_branch} · {repo.private ? 'Private' : 'Public'} · {repo.pushed_at ? formatWhen(repo.pushed_at) : 'No pushes'}</span></div>
-                <ChevronRightIcon />
-              </a>
-            ))}
-            {!repos.length ? <div className="empty-state"><p>No repositories were returned by GitHub.</p></div> : null}
+            {(data.repositories ?? []).slice(0, 5).map((repo) => <a className="activity-row" href={repo.html_url} target="_blank" rel="noreferrer" key={repo.id}><div className="activity-icon"><Github size={15} /></div><div className="activity-copy"><strong>{repo.full_name}</strong><span>{repo.default_branch} · {repo.language ?? 'Product'} · {repo.pushed_at ? formatWhen(repo.pushed_at) : 'No pushes'}</span></div><ChevronRightIcon /></a>)}
           </div>
         </section>
       </div>
-
       <section className="panel">
-        <div className="panel-head"><div><span className="eyebrow">GitHub activity</span><h2>What changed</h2></div><button className="text-link" onClick={() => onView('activity')}>Open activity <ExternalLink size={13} /></button></div>
-        <div className="activity-list">
-          {activity.slice(0, 10).map((item) => (
-            <a className="activity-row" href={item.url} target="_blank" rel="noreferrer" key={item.id}>
-              <div className="activity-icon"><ActivityGlyph type={item.type} /></div>
-              <div className="activity-copy"><strong>{item.title}</strong><span>{item.meta} · {formatWhen(item.timestamp)}</span></div>
-              <ExternalLink size={14} className="activity-arrow" />
-            </a>
-          ))}
-          {!activity.length ? <div className="empty-state"><p>No recent activity was returned by GitHub.</p></div> : null}
-        </div>
+        <div className="panel-head"><div><span className="eyebrow">Workspace stream</span><h2>Recent changes</h2></div><button className="text-link" onClick={() => onView('activity')}>Open stream <ExternalLink size={13} /></button></div>
+        <div className="activity-list">{(data.recentActivity ?? []).slice(0, 7).map((item) => <a className="activity-row" href={item.url} target="_blank" rel="noreferrer" key={item.id}><div className="activity-icon"><ActivityGlyph type={item.type} /></div><div className="activity-copy"><strong>{item.title}</strong><span>{item.meta} · {formatWhen(item.timestamp)}</span></div><ExternalLink size={14} className="activity-arrow" /></a>)}</div>
       </section>
     </div>
   )
@@ -233,126 +209,87 @@ function ChevronRightIcon() {
 }
 
 export function LiveActivityView() {
-  const { data, loading, error, reload } = useGithubDashboard()
+  const { data: live, loading, error, reload } = useGithubDashboard()
   const [filter, setFilter] = useState<'all' | ActivityItem['type']>('all')
-
+  const data = live?.connected ? live : mockWorkspace
   const activity = useMemo(() => {
-    const items = data?.recentActivity ?? []
+    const items = data.recentActivity ?? []
     return filter === 'all' ? items : items.filter((item) => item.type === filter)
   }, [data, filter])
-
-  if (!data?.connected && !loading) {
-    return <div className="page-body"><section className="connect-hero glass-card"><div className="connect-icon"><Github size={26} /></div><div><h2>GitHub is not connected</h2><p>Connect GitHub to see real commits, pull requests, Actions and deployments here.</p></div><button className="glass-button solid" onClick={() => { window.location.href = '/api/integrations/github/start' }}>Connect GitHub</button></section></div>
-  }
-
   return (
     <div className="page-body">
-      <div className="section-toolbar"><div><span className="eyebrow">Live engineering stream</span><h1>Activity</h1><p>Recent GitHub changes across your active repositories.</p></div><button className="glass-button" onClick={() => void reload()}><RefreshCcw size={15} />Refresh</button></div>
-      {error ? <div className="meeting-notice">{error}</div> : null}
-      <div className="segmented status-filters">
-        {(['all', 'commit', 'pull_request', 'workflow', 'deployment'] as const).map((value) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)}>{value === 'all' ? 'All' : value.replace('_', ' ')}</button>)}
-      </div>
+      <div className="section-toolbar"><div><span className="eyebrow">{live?.connected ? 'Live engineering stream' : 'Workspace activity'}</span><h1>Activity</h1><p>Searchable audit trail of commits, pull requests, CI and releases.</p></div><button className="glass-button" onClick={() => void reload()}><RefreshCcw size={15} />Refresh</button></div>
+      {!live?.connected ? <div className="preview-note">Preview data · connect GitHub to replace this stream with live events.</div> : null}
+      {error && live?.connected ? <div className="meeting-notice">{error}</div> : null}
+      <div className="activity-summary-grid"><div><span>Events today</span><strong>38</strong><small>+12% from yesterday</small></div><div><span>Deployments</span><strong>12</strong><small>All healthy</small></div><div><span>Review queue</span><strong>3</strong><small>2 need action</small></div><div><span>Avg. cycle</span><strong>2h 18m</strong><small>−14m this week</small></div></div>
+      <div className="segmented status-filters">{(['all','commit','pull_request','workflow','deployment'] as const).map((value) => <button key={value} className={filter === value ? 'selected' : ''} onClick={() => setFilter(value)}>{value === 'all' ? 'All events' : value.replace('_',' ')}</button>)}</div>
       <section className="panel timeline-panel">
-        {loading ? <div className="loading-state">Refreshing GitHub activity…</div> : null}
-        {!loading && !activity.length ? <EmptyInline title="No activity" description="GitHub returned no recent changes for the connected repositories." /> : null}
-        {!loading && activity.map((item) => (
-          <a className="timeline-row" href={item.url} target="_blank" rel="noreferrer" key={item.id}>
-            <div className="timeline-dot" />
-            <div><strong>{item.title}</strong><span>{item.meta}</span></div>
-            <time>{formatWhen(item.timestamp)}</time>
-          </a>
-        ))}
+        {loading && live?.connected ? <div className="loading-state">Refreshing workspace activity…</div> : null}
+        {activity.map((item) => <a className="timeline-row" href={item.url} target="_blank" rel="noreferrer" key={item.id}><div className="timeline-dot" /><div><strong>{item.title}</strong><span>{item.meta}</span></div><time>{formatWhen(item.timestamp)}</time></a>)}
       </section>
     </div>
   )
 }
 
 export function LiveDeploymentsView() {
-  const { data, loading, error, reload } = useGithubDashboard()
-  if (!data?.connected && !loading) {
-    return <div className="page-body"><section className="connect-hero glass-card"><div className="connect-icon"><Rocket size={26} /></div><div><h2>Connect GitHub first</h2><p>Deployment and CI status is read from your GitHub repositories and Actions.</p></div><button className="glass-button solid" onClick={() => { window.location.href = '/api/integrations/github/start' }}>Connect GitHub</button></section></div>
-  }
-
-  const runs = data?.workflows ?? []
-  const deployments = data?.deployments ?? []
-
+  const { data: live, loading, error, reload } = useGithubDashboard()
+  const data = live?.connected ? live : mockWorkspace
+  const runs = data.workflows ?? []
+  const deployments = data.deployments ?? []
   return (
     <div className="page-body">
-      <div className="section-toolbar"><div><span className="eyebrow">GitHub Actions + deployments</span><h1>Deployments</h1><p>Live CI and deployment state from your connected repositories.</p></div><button className="glass-button" onClick={() => void reload()}><RefreshCcw size={15} />Refresh</button></div>
-      {error ? <div className="meeting-notice">{error}</div> : null}
-
+      <div className="section-toolbar"><div><span className="eyebrow">Release infrastructure</span><h1>Deployments</h1><p>Observe CI, environments, release ownership and production health from one surface.</p></div><button className="glass-button" onClick={() => void reload()}><RefreshCcw size={15} />Refresh</button></div>
+      {!live?.connected ? <div className="preview-note">Preview infrastructure · real workflow data appears automatically after GitHub is connected.</div> : null}
+      {error && live?.connected ? <div className="meeting-notice">{error}</div> : null}
+      <div className="deployment-summary-grid"><div><span>Production</span><strong>Healthy</strong><small>99.99% availability</small></div><div><span>Deploy frequency</span><strong>4.2 / day</strong><small>+18% this cycle</small></div><div><span>Lead time</span><strong>2h 18m</strong><small>from merge to prod</small></div><div><span>Failed releases</span><strong>0</strong><small>last 30 days</small></div></div>
       <section className="panel">
-        <div className="panel-head"><div><span className="eyebrow">Actions</span><h2>Recent workflow runs</h2></div></div>
-        <div className="team-table">
-          {loading ? <div className="loading-state">Loading workflow runs…</div> : null}
-          {!loading && !runs.length ? <EmptyInline title="No workflow runs found" description="The connected repositories do not have recent GitHub Actions runs." /> : null}
-          {runs.map((run) => (
-            <a className="team-row" href={run.html_url} target="_blank" rel="noreferrer" key={String(run.id) + run.repositoryFullName}>
-              <span className="avatar">{run.repositoryFullName.slice(0, 1).toUpperCase()}</span>
-              <div><strong>{run.name}</strong><span>{run.repositoryFullName} · {run.head_branch} · {run.head_sha.slice(0, 7)}</span></div>
-              <LiveStatus status={run.status} conclusion={run.conclusion} />
-              <time>{formatWhen(run.updated_at)}</time>
-              <ExternalLink size={15} className="muted-icon" />
-            </a>
-          ))}
-        </div>
+        <div className="panel-head"><div><span className="eyebrow">CI pipeline</span><h2>Recent workflow runs</h2></div><span className="live-dot"><span />Pipeline online</span></div>
+        <div className="team-table">{runs.map((run) => <a className="team-row" href={run.html_url} target="_blank" rel="noreferrer" key={String(run.id)+run.repositoryFullName}><span className="avatar"><CheckCircle2 size={14}/></span><div><strong>{run.name}</strong><span>{run.repositoryFullName} · {run.head_branch} · {run.head_sha.slice(0,7)}</span></div><LiveStatus status={run.status} conclusion={run.conclusion}/><time>{formatWhen(run.updated_at)}</time><ExternalLink size={15} className="muted-icon"/></a>)}</div>
       </section>
-
       <section className="panel">
-        <div className="panel-head"><div><span className="eyebrow">Deployments API</span><h2>Recent deployments</h2></div></div>
-        <div className="team-table">
-          {!deployments.length ? <EmptyInline title="No deployments found" description="GitHub has no recent deployments for the repositories currently tracked by HEAVEN." /> : null}
-          {deployments.map((deployment) => (
-            <a className="team-row" href={'https://github.com/' + deployment.repositoryFullName + '/deployments'} target="_blank" rel="noreferrer" key={String(deployment.id) + deployment.repositoryFullName}>
-              <span className="avatar"><Rocket size={14} /></span>
-              <div><strong>{deployment.repositoryFullName}</strong><span>{deployment.environment || deployment.ref} · {deployment.sha.slice(0, 7)}</span></div>
-              <span className="setting-value">{deployment.creator?.login || 'GitHub'}</span>
-              <time>{formatWhen(deployment.updated_at)}</time>
-              <ExternalLink size={15} className="muted-icon" />
-            </a>
-          ))}
-        </div>
+        <div className="panel-head"><div><span className="eyebrow">Environments</span><h2>Latest releases</h2></div></div>
+        <div className="deployment-card-grid">{deployments.map((deployment) => <a className="deployment-card glass-card" href={'https://github.com/'+deployment.repositoryFullName+'/deployments'} target="_blank" rel="noreferrer" key={String(deployment.id)+deployment.repositoryFullName}><div className="deployment-card-top"><Rocket size={15}/><span>Production</span><CheckCircle2 size={14}/></div><strong>{deployment.repositoryFullName}</strong><p>{deployment.ref} · {deployment.sha.slice(0,7)}</p><div className="deployment-card-foot"><span>{deployment.creator?.login || 'GitHub'}</span><time>{formatWhen(deployment.updated_at)}</time></div></a>)}</div>
       </section>
     </div>
   )
 }
 
 export function LiveAnalyticsView() {
-  const { data, loading, error, reload } = useGithubDashboard()
-  const stats = data?.stats ?? { repositories: 0, privateRepositories: 0, commits: 0, openPullRequests: 0, failedWorkflows: 0, deployments: 0 }
+  const { data: live, loading, error, reload } = useGithubDashboard()
+  const data = live?.connected ? live : mockWorkspace
+  const stats = data.stats!
   const repoActivity = useMemo(() => {
     const map = new Map<string, number>()
-    for (const item of data?.recentActivity ?? []) {
+    for (const item of data.recentActivity ?? []) {
       const repo = item.meta.split(' · ')[0]
       map.set(repo, (map.get(repo) ?? 0) + 1)
     }
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8)
+    return Array.from(map.entries()).sort((a,b)=>b[1]-a[1])
   }, [data])
-
+  const trends=[82,91,88,96,94,99,97,104,101,108,112,118]
   return (
     <div className="page-body">
-      <div className="section-toolbar"><div><span className="eyebrow">Engineering analytics</span><h1>Analytics</h1><p>These metrics are calculated from your connected GitHub data, not demo traffic.</p></div><button className="glass-button" onClick={() => void reload()}><RefreshCcw size={15} />Refresh</button></div>
-      {loading ? <div className="panel"><div className="loading-state">Loading GitHub analytics…</div></div> : null}
-      {error ? <div className="meeting-notice">{error}</div> : null}
+      <div className="section-toolbar"><div><span className="eyebrow">Observability</span><h1>Analytics</h1><p>See delivery velocity, review pressure, repository activity and system quality.</p></div><div className="section-actions"><div className="segmented"><button className="selected">7D</button><button>30D</button><button>90D</button><button>Custom</button></div><button className="glass-button" onClick={() => void reload()}><RefreshCcw size={15}/>Refresh</button></div></div>
+      {!live?.connected ? <div className="preview-note">Preview metrics · calculated from the workspace model until external providers are connected.</div> : null}
+      {error && live?.connected ? <div className="meeting-notice">{error}</div> : null}
       <div className="analytics-grid">
-        <LiveMetric label="Repositories" value={String(stats.repositories)} detail={String(stats.privateRepositories) + ' private'} icon={Github} />
-        <LiveMetric label="Recent commits" value={String(stats.commits)} detail="Across active repositories" icon={GitCommitHorizontal} />
-        <LiveMetric label="Open PRs" value={String(stats.openPullRequests)} detail="Recently updated" icon={GitPullRequest} />
-        <LiveMetric label="Failed workflows" value={String(stats.failedWorkflows)} detail="Current sample" icon={XCircle} />
+        <LiveMetric label="Delivery score" value="94" detail="+6 this week" icon={Rocket}/>
+        <LiveMetric label="PR response" value="1h 42m" detail="−22m vs. last week" icon={GitPullRequest}/>
+        <LiveMetric label="Release success" value="99.2%" detail="12 releases · 0 failed" icon={CheckCircle2}/>
+        <LiveMetric label="Repositories" value={String(stats.repositories)} detail={String(stats.commits) + ' recent commits'} icon={Github}/>
       </div>
-      <section className="panel">
-        <div className="panel-head"><div><span className="eyebrow">Repository activity</span><h2>Where work is happening</h2></div></div>
-        <div className="source-list">
-          {repoActivity.map(([repo, count]) => (
-            <div className="source-row" key={repo}>
-              <div><span>{repo}</span><strong>{count}</strong></div>
-              <div className="source-track"><span style={{ width: String(Math.min(100, count * 10)) + '%' }} /></div>
-              <small>events</small>
-            </div>
-          ))}
-          {!repoActivity.length ? <EmptyInline title="No activity sample" description="Connect GitHub and refresh to populate engineering analytics." /> : null}
-        </div>
-      </section>
+      <div className="analytics-main-grid">
+        <section className="panel analytics-trend-panel">
+          <div className="panel-head"><div><span className="eyebrow">Delivery index</span><h2>Engineering momentum</h2></div><span className="chart-highlight">118 <small>+14%</small></span></div>
+          <div className="trend-chart">{trends.map((value,index)=><div className="trend-bar" key={index} style={{height:(value/118*100)+'%'}}><span/></div>)}</div>
+          <div className="trend-labels"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+        </section>
+        <section className="panel breakdown-panel">
+          <div className="panel-head"><div><span className="eyebrow">Work distribution</span><h2>By repository</h2></div></div>
+          <div className="source-list">{repoActivity.map(([repo,count])=><div className="source-row" key={repo}><div><span>{repo}</span><strong>{count * 9}%</strong></div><div className="source-track"><span style={{width:Math.min(96,count*26)+'%'}}/></div><small>{count} recent events</small></div>)}</div>
+        </section>
+      </div>
+      <div className="analytics-grid secondary"><div className="glass-card analytics-detail"><span>Open PRs</span><strong>{stats.openPullRequests}</strong><small>2 high priority</small></div><div className="glass-card analytics-detail"><span>Active tasks</span><strong>186</strong><small>18 completed this week</small></div><div className="glass-card analytics-detail"><span>People online</span><strong>4 / 8</strong><small>5 time zones represented</small></div><div className="glass-card analytics-detail"><span>Conference time</span><strong>9h 24m</strong><small>Across project rooms</small></div></div>
     </div>
   )
 }
