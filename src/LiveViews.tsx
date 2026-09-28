@@ -183,7 +183,7 @@ function ActivityGlyph({ type }: { type: ActivityItem['type'] }) {
   return <Rocket size={15} />
 }
 
-export function LiveOverview({ onView }: { onView: (view: 'repositories' | 'activity') => void }) {
+export function LiveOverview({ onView }: { onView: (view: 'repositories' | 'activity' | 'projects' | 'people' | 'rooms') => void }) {
   const { data: live, loading, error, reload } = useGithubDashboard()
   if (loading) return <div className="page-body"><div className="panel"><div className="loading-state">Loading workspace signals…</div></div></div>
   const data = live?.connected ? live : mockWorkspace
@@ -215,9 +215,9 @@ export function LiveOverview({ onView }: { onView: (view: 'repositories' | 'acti
             <div><span>Release health</span><strong>99.9%</strong><small>0 failed runs</small></div>
           </div>
           <div className="quick-launch-grid">
-            <button onClick={() => window.dispatchEvent(new CustomEvent('heaven:navigate', { detail: 'projects' }))}><Github size={15} /><span><strong>Projects</strong><small>Open delivery boards</small></span><ArrowUpRight size={13} /></button>
-            <button onClick={() => window.dispatchEvent(new CustomEvent('heaven:navigate', { detail: 'people' }))}><Users size={15} /><span><strong>People</strong><small>Find a teammate</small></span><ArrowUpRight size={13} /></button>
-            <button onClick={() => window.dispatchEvent(new CustomEvent('heaven:navigate', { detail: 'rooms' }))}><Video size={15} /><span><strong>Conference</strong><small>Join a room</small></span><ArrowUpRight size={13} /></button>
+            <button onClick={() => onView('projects')}><Github size={15} /><span><strong>Projects</strong><small>Open delivery boards</small></span><ArrowUpRight size={13} /></button>
+            <button onClick={() => onView('people')}><Users size={15} /><span><strong>People</strong><small>Find a teammate</small></span><ArrowUpRight size={13} /></button>
+            <button onClick={() => onView('rooms')}><Video size={15} /><span><strong>Conference</strong><small>Join a room</small></span><ArrowUpRight size={13} /></button>
           </div>
         </section>
         <section className="panel">
