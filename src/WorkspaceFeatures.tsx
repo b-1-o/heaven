@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowUpRight,
   BriefcaseBusiness,
@@ -54,6 +54,8 @@ type Room = {
   participantCount: number
   participants: string[]
   accent: string
+  zoomMeetingNumber?: string
+  zoomPassword?: string
 }
 
 const people: Person[] = [
@@ -190,6 +192,146 @@ export function PeopleDirectoryView({ onView, onNotify }: { onView: (view: 'proj
   )
 }
 
+type ZoomEmbeddedClient = {
+  init: (options: { zoomAppRoot: HTMLElement; language?: string; assetPath?: string }) => Promise<void>
+  join: (options: { signature: string; meetingNumber: string; password: string; userName: string; zak?: string }) => Promise<void>
+  leave?: () => Promise<void> | void
+}
+
+type ZoomEmbeddedApi = {
+  createClient: () => ZoomEmbeddedClient
+}
+
+declare global {
+  interface Window {
+    ZoomMtgEmbedded?: ZoomEmbeddedApi
+    __heavenZoomSdkPromise?: Promise<void>
+  }
+}
+
+function loadExternalScript(src: string) {
+  return new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`)
+    if (existing) {
+      resolve()
+      return
+    }
+    const script = document.createElement('script')
+    script.src = src
+    script.async = false
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Could not load Zoom SDK asset'))
+    document.head.appendChild(script)
+  })
+}
+
+async function ensureZoomEmbeddedSdk() {
+  if (window.ZoomMtgEmbedded) return
+  if (window.__heavenZoomSdkPromise) return window.__heavenZoomSdkPromise
+
+  const version = '6.5.0'
+  window.__heavenZoomSdkPromise = (async () => {
+    const sources = [
+      `https://source.zoom.us/${version}/lib/vendor/react.min.js`,
+      `https://source.zoom.us/${version}/lib/vendor/react-dom.min.js`,
+      `https://source.zoom.us/${version}/lib/vendor/redux.min.js`,
+      `https://source.zoom.us/${version}/lib/vendor/redux-thunk.min.js`,
+      `https://source.zoom.us/${version}/lib/vendor/lodash.min.js`,
+      `https://source.zoom.us/${version}/zoom-meeting-embedded-${version}.min.js`,
+    ]
+    for (const source of sources) await loadExternalScript(source)
+    if (!window.ZoomMtgEmbedded) throw new Error('Zoom Meeting SDK did not initialize')
+  })()
+
+  return window.__heavenZoomSdkPromise
+}
+
+function ZoomMeetingEmbed({
+  meetingNumber,
+  password = '',
+  onError,
+}: {
+  meetingNumber: string
+  password?: string
+  onError: (message: string) => void
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const clientRef = useRef<ZoomEmbeddedClient | null>(null)
+  const [status, setStatus] = useState<'loading' | 'joining' | 'live' | 'error'>('loading')
+
+  useEffect(() => {
+    let cancelled = false
+
+    const join = async () => {
+      try {
+        setStatus('loading')
+        const response = await fetch(`/api/meetings/zoom/sdk?meetingNumber=${encodeURIComponent(meetingNumber)}&role=1`, { cache: 'no-store' })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error ?? 'Zoom authorization failed')
+
+        await ensureZoomEmbeddedSdk()
+        if (cancelled || !rootRef.current || !window.ZoomMtgEmbedded) return
+
+        const client = window.ZoomMtgEmbedded.createClient()
+        clientRef.current = client
+        setStatus('joining')
+        await client.init({
+          zoomAppRoot: rootRef.current,
+          language: 'en-US',
+          assetPath: 'https://source.zoom.us/6.5.0/lib/av',
+        })
+        if (cancelled) return
+
+        await client.join({
+          signature: data.signature,
+          meetingNumber: data.meetingNumber,
+          password: data.password ?? password ?? '',
+          userName: data.userName ?? 'Erik',
+          zak: data.zak ?? undefined,
+        })
+        if (!cancelled) setStatus('live')
+      } catch (error) {
+        if (cancelled) return
+        const message = error instanceof Error ? error.message : 'Unable to join Zoom'
+        setStatus('error')
+        onError(message)
+      }
+    }
+
+    void join()
+
+    return () => {
+      cancelled = true
+      const client = clientRef.current
+      clientRef.current = null
+      try {
+        const result = client?.leave?.()
+        if (result && typeof result.then === 'function') void result.catch(() => {})
+      } catch {}
+    }
+  }, [meetingNumber, password, onError])
+
+  return (
+    <div className="zoom-embed-shell">
+      <div ref={rootRef} id="meetingSDKElement" className="zoom-embed-root" />
+      {status === 'loading' || status === 'joining' ? (
+        <div className="zoom-embed-overlay">
+          <div className="zoom-embed-spinner" />
+          <strong>{status === 'loading' ? 'Loading Zoom' : 'Joining conference'}</strong>
+          <span>Preparing your private meeting space…</span>
+        </div>
+      ) : null}
+      {status === 'error' ? (
+        <div className="zoom-embed-overlay error">
+          <Video size={20} />
+          <strong>Zoom could not start</strong>
+          <span>Check the Zoom connection and Meeting SDK permissions.</span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meetings') => void; onNotify: (message: string) => void }) {
   const [rooms, setRooms] = useState<Room[]>(initialRooms)
   const [query, setQuery] = useState('')
@@ -201,14 +343,62 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
   const [sharing, setSharing] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
   const [newRoomName, setNewRoomName] = useState('')
+  const [zoomError, setZoomError] = useState('')
+
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem('heaven-conference-rooms')
-      if (stored) setRooms(JSON.parse(stored) as Room[])
-    } catch {
-      // Keep defaults.
+    let cancelled = false
+    const loadRooms = async () => {
+      try {
+        const stored = window.localStorage.getItem('heaven-conference-rooms')
+        if (!cancelled && stored) setRooms(JSON.parse(stored) as Room[])
+      } catch {
+        // Keep defaults.
+      }
+
+      try {
+        const response = await fetch('/api/meetings', { cache: 'no-store' })
+        const data = await response.json()
+        if (!response.ok || cancelled) return
+
+        const liveZoomRooms: Room[] = (data.meetings ?? [])
+          .filter((meeting: { provider?: string; external_id?: string | null }) => meeting.provider === 'zoom' && meeting.external_id)
+          .map((meeting: {
+            id: string
+            external_id: string
+            title: string
+            scheduled_at: string
+            duration_minutes: number
+            metadata?: { password?: string | null }
+          }) => ({
+            id: 'zoom-' + meeting.id,
+            name: meeting.title,
+            project: 'Zoom workspace',
+            status: Date.parse(meeting.scheduled_at) <= Date.now() ? 'Live' : 'Scheduled',
+            start: Date.parse(meeting.scheduled_at) <= Date.now() ? 'Now' : new Date(meeting.scheduled_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+            duration: meeting.duration_minutes + ' min',
+            host: 'Zoom',
+            participantCount: 0,
+            participants: [],
+            accent: 'Zoom',
+            zoomMeetingNumber: String(meeting.external_id),
+            zoomPassword: meeting.metadata?.password ?? '',
+          }))
+
+        if (liveZoomRooms.length) {
+          setRooms((current) => {
+            const localOnly = current.filter((room) => !room.zoomMeetingNumber)
+            return [...liveZoomRooms, ...localOnly]
+          })
+          setSelectedRoomId((current) => liveZoomRooms.some((room) => room.id === current) ? current : liveZoomRooms[0].id)
+        }
+      } catch {
+        // Preview rooms remain available when the live meeting API is unavailable.
+      }
     }
+
+    void loadRooms()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -224,34 +414,70 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
 
   const openRoom = () => {
     setSelectedRoomId(activeRoom.id)
+    setZoomError('')
     setJoined(true)
+
+    if (activeRoom.zoomMeetingNumber) {
+      onNotify('Joining ' + activeRoom.name)
+      return
+    }
+
     setRooms((items) => items.map((room) => room.id === activeRoom.id && room.status === 'Available'
       ? { ...room, status: 'Live', start: 'Now', duration: 'Just started', participantCount: 1, participants: ['EG'] }
       : room))
-    onNotify('Joined ' + activeRoom.name)
+    onNotify('Preview room opened')
   }
 
-  const createRoom = () => {
+  const createRoom = async () => {
     const name = newRoomName.trim()
     if (!name) return
-    const room: Room = {
-      id: 'room-' + Date.now(),
-      name,
-      project: 'Workspace',
-      status: 'Live',
-      start: 'Now',
-      duration: 'Just started',
-      host: 'Erik Ghabuzyan',
-      participantCount: 1,
-      participants: ['EG'],
-      accent: 'Workspace',
+
+    setZoomError('')
+    try {
+      const response = await fetch('/api/meetings/zoom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: name,
+          startTime: new Date(Date.now() + 60_000).toISOString(),
+          durationMinutes: 60,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        if (response.status === 409) {
+          onNotify('Connect Zoom in Meeting center first')
+          onView('meetings')
+          return
+        }
+        throw new Error(data.error ?? 'Could not create Zoom room')
+      }
+
+      const room: Room = {
+        id: 'zoom-' + Date.now(),
+        name: data.title,
+        project: 'Zoom workspace',
+        status: 'Live',
+        start: 'Now',
+        duration: (data.durationMinutes ?? 60) + ' min',
+        host: 'Zoom',
+        participantCount: 0,
+        participants: [],
+        accent: 'Zoom',
+        zoomMeetingNumber: String(data.id),
+        zoomPassword: data.password ?? '',
+      }
+      setRooms((items) => [room, ...items.filter((item) => item.zoomMeetingNumber !== room.zoomMeetingNumber)])
+      setSelectedRoomId(room.id)
+      setJoined(true)
+      setComposerOpen(false)
+      setNewRoomName('')
+      onNotify('Created ' + name)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not create Zoom room'
+      setZoomError(message)
+      onNotify(message)
     }
-    setRooms((items) => [room, ...items])
-    setSelectedRoomId(room.id)
-    setJoined(true)
-    setComposerOpen(false)
-    setNewRoomName('')
-    onNotify('Created ' + name)
   }
 
   return (
@@ -287,31 +513,46 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
         </div>
       </div>
 
+      {zoomError ? <div className="meeting-notice">{zoomError}</div> : null}
+
       <div className="room-layout">
         <section className="room-stage panel">
           <div className="room-stage-top">
             <div><span className="eyebrow"><span className="live-indicator" /> {activeRoom.status === 'Live' ? 'Live room' : activeRoom.status}</span><h2>{activeRoom.name}</h2><p>{activeRoom.project} · hosted by {activeRoom.host}</p></div>
             <span className="room-time">{activeRoom.start} · {activeRoom.duration}</span>
           </div>
-          <div className="video-grid">
-            {[...activeRoom.participants, ...(activeRoom.status === 'Live' && activeRoom.participants.length < 6 ? ['+'] : [])].slice(0, 6).map((initials, index) => (
-              <div className={'video-tile ' + (index === 0 ? 'featured' : '')} key={activeRoom.id + '-' + index}>
-                {initials === '+' ? <div className="video-avatar empty">+</div> : <div className="video-avatar">{initials}</div>}
-                <span>{initials === '+' ? 'Invite' : people.find((person) => person.initials === initials)?.name ?? initials}</span>
-                {index === 0 && activeRoom.status === 'Live' ? <i className="speaking-bar" /> : null}
-              </div>
-            ))}
-            {activeRoom.participants.length === 0 ? <div className="video-empty"><PanelTop size={20} /><strong>Room is ready</strong><span>Start the room when the team is ready.</span></div> : null}
-          </div>
-          <div className="room-controls">
-            <button className={'room-control ' + (muted ? 'active' : '')} onClick={() => setMuted((value) => !value)}><Mic size={16} /><span>{muted ? 'Unmute' : 'Mute'}</span></button>
-            <button className={'room-control ' + (cameraOff ? 'active' : '')} onClick={() => setCameraOff((value) => !value)}><Camera size={16} /><span>{cameraOff ? 'Camera on' : 'Camera'}</span></button>
-            <button className={'room-control ' + (sharing ? 'active' : '')} onClick={() => setSharing((value) => !value)}><MonitorUp size={16} /><span>{sharing ? 'Stop share' : 'Share'}</span></button>
-            <button className="room-control" onClick={() => onNotify('Invite link copied')}><Copy size={16} /><span>Invite</span></button>
-            {joined
-              ? <button className="room-control danger" onClick={() => { setJoined(false); onNotify('You left the room') }}><Phone size={16} /><span>Leave</span></button>
-              : <button className="room-control primary" onClick={openRoom}><Video size={16} /><span>{activeRoom.status === 'Scheduled' ? 'Open room' : 'Join room'}</span></button>}
-          </div>
+          {joined && activeRoom.zoomMeetingNumber ? (
+            <ZoomMeetingEmbed
+              meetingNumber={activeRoom.zoomMeetingNumber}
+              password={activeRoom.zoomPassword}
+              onError={(message) => setZoomError(message)}
+            />
+          ) : (
+            <div className="video-grid">
+              {[...activeRoom.participants, ...(activeRoom.status === 'Live' && activeRoom.participants.length < 6 ? ['+'] : [])].slice(0, 6).map((initials, index) => (
+                <div className={'video-tile ' + (index === 0 ? 'featured' : '')} key={activeRoom.id + '-' + index}>
+                  {initials === '+' ? <div className="video-avatar empty">+</div> : <div className="video-avatar">{initials}</div>}
+                  <span>{initials === '+' ? 'Invite' : people.find((person) => person.initials === initials)?.name ?? initials}</span>
+                  {index === 0 && activeRoom.status === 'Live' ? <i className="speaking-bar" /> : null}
+                </div>
+              ))}
+              {activeRoom.participants.length === 0 ? <div className="video-empty"><PanelTop size={20} /><strong>Room is ready</strong><span>{activeRoom.zoomMeetingNumber ? 'Join the live Zoom room to begin.' : 'Preview room — connect Zoom for a real conference.'}</span></div> : null}
+            </div>
+          )}
+          {joined && activeRoom.zoomMeetingNumber ? (
+            <div className="room-controls zoom-room-controls">
+              <span className="zoom-control-note"><Radio size={14} /> Zoom is embedded in HEAVEN</span>
+              <button className="room-control danger" onClick={() => { setJoined(false); onNotify('You left the room') }}><Phone size={16} /><span>Leave</span></button>
+            </div>
+          ) : (
+            <div className="room-controls">
+              <button className={'room-control ' + (muted ? 'active' : '')} onClick={() => setMuted((value) => !value)}><Mic size={16} /><span>{muted ? 'Unmute' : 'Mute'}</span></button>
+              <button className={'room-control ' + (cameraOff ? 'active' : '')} onClick={() => setCameraOff((value) => !value)}><Camera size={16} /><span>{cameraOff ? 'Camera on' : 'Camera'}</span></button>
+              <button className={'room-control ' + (sharing ? 'active' : '')} onClick={() => setSharing((value) => !value)}><MonitorUp size={16} /><span>{sharing ? 'Stop share' : 'Share'}</span></button>
+              <button className="room-control" onClick={() => onNotify('Invite link copied')}><Copy size={16} /><span>Invite</span></button>
+              <button className={'room-control ' + (activeRoom.zoomMeetingNumber ? 'primary' : '')} onClick={openRoom}><Video size={16} /><span>{activeRoom.zoomMeetingNumber ? 'Join Zoom' : 'Preview room'}</span></button>
+            </div>
+          )}
           {sharing ? <div className="sharing-banner"><MonitorUp size={14} /> Screen sharing mode is active for this room.</div> : null}
         </section>
 
