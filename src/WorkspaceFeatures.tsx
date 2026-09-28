@@ -15,6 +15,7 @@ import {
   Mic,
   MonitorUp,
   MoreHorizontal,
+  Trash2,
   PanelTop,
   Phone,
   Radio,
@@ -349,6 +350,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
   const [composerOpen, setComposerOpen] = useState(false)
   const [newRoomName, setNewRoomName] = useState('')
   const [zoomError, setZoomError] = useState('')
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null)
 
 
   useEffect(() => {
@@ -459,7 +461,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
       }
 
       const room: Room = {
-        id: 'zoom-' + Date.now(),
+        id: 'zoom-' + data.dbId,
         name: data.title,
         project: 'Zoom workspace',
         status: 'Live',
@@ -484,6 +486,45 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
       onNotify(message)
     }
   }
+
+  const deleteRoom = async (room: Room) => {
+    if (!room.zoomMeetingNumber || !room.id.startsWith('zoom-')) {
+      setRooms((items) => items.filter((item) => item.id !== room.id))
+      if (activeRoom.id === room.id) {
+        setSelectedRoomId(rooms.find((item) => item.id !== room.id)?.id ?? '')
+        setJoined(false)
+      }
+      return
+    }
+
+    const dbId = room.id.slice('zoom-'.length)
+    if (!dbId) return
+
+    setDeletingRoomId(room.id)
+    setZoomError('')
+    try {
+      const response = await fetch('/api/meetings/' + encodeURIComponent(dbId), { method: 'DELETE' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error ?? 'Could not delete conference')
+
+      setJoined(false)
+      setRooms((items) => {
+        const next = items.filter((item) => item.id !== room.id)
+        const nextSelected = next[0]?.id ?? ''
+        setSelectedRoomId(nextSelected)
+        return next
+      })
+      onNotify('Deleted ' + room.name)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not delete conference'
+      setZoomError(message)
+      onNotify(message)
+    } finally {
+      setDeletingRoomId(null)
+    }
+  }
+
+
 
   return (
     <div className="page-body">
@@ -565,11 +606,24 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
           <div className="panel-head"><div><span className="eyebrow">Workspace rooms</span><h2>{filtered.length} rooms</h2></div><MoreHorizontal size={17} className="muted-icon" /></div>
           <div className="room-list">
             {filtered.map((room) => (
-              <button className={'room-card ' + (activeRoom.id === room.id ? 'selected' : '')} key={room.id} onClick={() => { setSelectedRoomId(room.id); setJoined(false) }}>
-                <div className="room-card-head"><span className={'room-status-badge ' + room.status.toLowerCase()}><i />{room.status}</span><span>{room.participantCount} people</span></div>
-                <strong>{room.name}</strong><span>{room.project} · {room.start}</span>
-                <div className="room-participants">{room.participants.slice(0, 5).map((initials) => <span key={initials}>{initials}</span>)}{room.participantCount > 5 ? <span>+{room.participantCount - 5}</span> : null}</div>
-              </button>
+              <div className={'room-card ' + (activeRoom.id === room.id ? 'selected' : '')} key={room.id}>
+                <button className="room-card-main" onClick={() => { setSelectedRoomId(room.id); setJoined(false); setZoomError('') }}>
+                  <div className="room-card-head"><span className={'room-status-badge ' + room.status.toLowerCase()}><i />{room.status}</span><span>{room.participantCount} people</span></div>
+                  <strong>{room.name}</strong><span>{room.project} · {room.start}</span>
+                  <div className="room-participants">{room.participants.slice(0, 5).map((initials) => <span key={initials}>{initials}</span>)}{room.participantCount > 5 ? <span>+{room.participantCount - 5}</span> : null}</div>
+                </button>
+                {room.zoomMeetingNumber ? (
+                  <button
+                    className="room-delete"
+                    onClick={() => void deleteRoom(room)}
+                    disabled={deletingRoomId === room.id}
+                    aria-label={'Delete ' + room.name}
+                  >
+                    <Trash2 size={13} />
+                    <span>{deletingRoomId === room.id ? 'Deleting…' : 'Delete'}</span>
+                  </button>
+                ) : null}
+              </div>
             ))}
           </div>
         </aside>
