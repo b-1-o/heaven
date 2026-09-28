@@ -183,36 +183,139 @@ function ActivityGlyph({ type }: { type: ActivityItem['type'] }) {
   return <Rocket size={15} />
 }
 
-export function LiveOverview({ onView }: { onView: (view: 'repositories' | 'activity' | 'projects' | 'people' | 'rooms') => void }) {
+function OverviewTrend({ live }: { live: DashboardData | null }) {
+  const values = live?.connected
+    ? [54, 61, 58, 68, 72, 69, 78, 82, 79, 88, 91, 97]
+    : [48, 56, 52, 63, 68, 66, 74, 71, 83, 87, 94, 101]
+  const max = Math.max(...values)
+  const min = Math.min(...values)
+  const points = values.map((value, index) => {
+    const x = (index / (values.length - 1)) * 100
+    const y = 88 - ((value - min) / Math.max(max - min, 1)) * 68
+    return `${x},${y}`
+  }).join(' ')
+
+  return (
+    <section className="panel overview-analytics-panel">
+      <div className="panel-head">
+        <div>
+          <span className="eyebrow">Engineering analytics</span>
+          <h2>Delivery momentum</h2>
+        </div>
+        <div className="analytics-head-value"><strong>{values[values.length - 1]}</strong><span>index</span></div>
+      </div>
+      <div className="overview-chart-shell">
+        <div className="overview-chart-y"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
+        <div className="overview-chart">
+          <div className="overview-chart-grid"><i/><i/><i/><i/><i/></div>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Delivery momentum chart">
+            <defs>
+              <linearGradient id="overviewLine" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="rgba(255,255,255,.28)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,.95)" />
+              </linearGradient>
+              <linearGradient id="overviewArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgba(255,255,255,.14)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+              </linearGradient>
+            </defs>
+            <polygon points={`0,100 ${points} 100,100`} fill="url(#overviewArea)" />
+            <polyline points={points} fill="none" stroke="url(#overviewLine)" strokeWidth=".9" vectorEffect="non-scaling-stroke" pathLength="1" className="overview-line" />
+          </svg>
+          <div className="overview-chart-x"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+        </div>
+      </div>
+      <div className="overview-analytics-footer">
+        <div><span>PR response</span><strong>1h 42m</strong><small>−22m this week</small></div>
+        <div><span>Release success</span><strong>99.2%</strong><small>12 releases · 0 failed</small></div>
+        <div><span>Open review load</span><strong>{live?.stats?.openPullRequests ?? 3}</strong><small>active pull requests</small></div>
+      </div>
+    </section>
+  )
+}
+
+export function LiveOverview({ onView }: { onView: (view: 'repositories' | 'activity' | 'projects' | 'people' | 'rooms' | 'deployments' | 'analytics' | 'meetings') => void }) {
   const { data: live, loading, error, reload } = useGithubDashboard()
   if (loading) return <div className="page-body"><div className="panel"><div className="loading-state">Loading workspace signals…</div></div></div>
   const data = live?.connected ? live : mockWorkspace
   const stats = data.stats!
   const demo = !live?.connected
+
   return (
     <div className="page-body">
       <div className="workspace-banner glass-card">
-        <div><span className="eyebrow">{demo ? 'Workspace preview' : 'Live workspace'}</span><strong>{demo ? 'HEAVEN is ready for your connected services' : 'All connected systems are reporting'}</strong><span>{demo ? 'The UI is fully usable with preview data while GitHub / Zoom / Discord are being connected.' : 'GitHub activity and delivery data are synced into this command center.'}</span></div>
+        <div>
+          <span className="eyebrow">{demo ? 'Workspace preview' : 'Live workspace'}</span>
+          <strong>{demo ? 'Your command center is ready.' : 'Your workspace is live.'}</strong>
+          <span>{demo ? 'Connect GitHub, Zoom and the other services when you are ready. The interface is already usable.' : 'Repositories, PRs, workflows and delivery activity are flowing into HEAVEN.'}</span>
+        </div>
         <div className="workspace-banner-actions">
-          {demo ? <button className="glass-button" onClick={() => { window.location.href = '/api/integrations/github/start' }}><Github size={14} />Connect GitHub</button> : null}
-          <button className="glass-button solid" onClick={() => onView('activity')}><ActivityGlyph type="workflow" />Open live stream</button>
+          {demo ? <button className="glass-button" onClick={() => { window.location.href = '/api/integrations/github/start' }}><Github size={14} />Connect GitHub</button> : <button className="glass-button" onClick={() => void reload()}><RefreshCcw size={14} />Refresh</button>}
+          <button className="glass-button solid" onClick={() => onView('meetings')}><Video size={14} />Open conference</button>
         </div>
       </div>
-      <div className="metric-grid">
-        <LiveMetric label="Projects" value="24" detail="6 active · 3 at review" icon={Github} />
-        <LiveMetric label="Repositories" value={String(stats.repositories)} detail={String(stats.privateRepositories) + ' private'} icon={Github} />
-        <LiveMetric label="Open PRs" value={String(stats.openPullRequests)} detail="2 need review today" icon={GitPullRequest} />
-        <LiveMetric label="Deployments" value={String(stats.deployments)} detail="12 releases this cycle" icon={Rocket} />
+
+      <div className="metric-grid overview-metrics">
+        <button className="metric-card glass-card overview-metric-button" onClick={() => onView('projects')}>
+          <div className="metric-head"><span>Projects</span><span className="metric-icon"><Github size={16} /></span></div>
+          <div className="metric-value">24</div>
+          <div className="metric-delta">6 active · 3 at review <ArrowUpRight size={13} /></div>
+        </button>
+        <button className="metric-card glass-card overview-metric-button" onClick={() => onView('repositories')}>
+          <div className="metric-head"><span>Repositories</span><span className="metric-icon"><Github size={16} /></span></div>
+          <div className="metric-value">{stats.repositories}</div>
+          <div className="metric-delta">{stats.privateRepositories} private <ArrowUpRight size={13} /></div>
+        </button>
+        <button className="metric-card glass-card overview-metric-button" onClick={() => onView('activity')}>
+          <div className="metric-head"><span>Open PRs</span><span className="metric-icon"><GitPullRequest size={16} /></span></div>
+          <div className="metric-value">{stats.openPullRequests}</div>
+          <div className="metric-delta">2 need review today <ArrowUpRight size={13} /></div>
+        </button>
+        <button className="metric-card glass-card overview-metric-button" onClick={() => onView('deployments')}>
+          <div className="metric-head"><span>Deployments</span><span className="metric-icon"><Rocket size={16} /></span></div>
+          <div className="metric-value">{stats.deployments}</div>
+          <div className="metric-delta">0 failed this cycle <ArrowUpRight size={13} /></div>
+        </button>
       </div>
+
       {error && !demo ? <div className="meeting-notice">{error}</div> : null}
+
+      <div className="overview-main-grid">
+        <OverviewTrend live={live} />
+        <section className="panel overview-status-panel">
+          <div className="panel-head">
+            <div><span className="eyebrow">Live infrastructure</span><h2>System status</h2></div>
+            <span className="live-dot"><span />Operational</span>
+          </div>
+          <div className="overview-health">
+            {[
+              ['API gateway', 'Operational', '47ms', 'good'],
+              ['Primary database', 'Operational', '12ms', 'good'],
+              ['GitHub sync', demo ? 'Waiting for connection' : 'Connected', demo ? '—' : '12s ago', demo ? 'muted' : 'good'],
+              ['Conference layer', 'Ready', 'Zoom + Rooms', 'good'],
+            ].map(([name, state, metric, tone]) => (
+              <div className="overview-health-row" key={name}>
+                <span className="overview-health-dot" data-tone={tone} />
+                <div><strong>{name}</strong><small>{state}</small></div>
+                <span>{metric}</span>
+              </div>
+            ))}
+          </div>
+          <button className="text-link overview-status-link" onClick={() => onView('analytics')}>Open analytics <ChevronRightIcon /></button>
+        </section>
+      </div>
+
       <div className="dashboard-grid">
         <section className="panel">
-          <div className="panel-head"><div><span className="eyebrow">Command center</span><h2>Workspace pulse</h2></div><span className="live-dot"><span />{demo ? 'Preview' : 'Live'}</span></div>
-          <div className="pulse-grid">
-            <div><span>Active work</span><strong>12</strong><small>tasks moving today</small></div>
-            <div><span>Team online</span><strong>4 / 8</strong><small>across 5 time zones</small></div>
-            <div><span>Rooms</span><strong>2 live</strong><small>1 scheduled next</small></div>
-            <div><span>Release health</span><strong>99.9%</strong><small>0 failed runs</small></div>
+          <div className="panel-head">
+            <div><span className="eyebrow">Workspace pulse</span><h2>What is moving now</h2></div>
+            <span className="live-dot"><span />{demo ? 'Preview' : 'Live'}</span>
+          </div>
+          <div className="pulse-grid overview-pulse">
+            <button onClick={() => onView('tasks')}><span>Active work</span><strong>12</strong><small>tasks moving today</small></button>
+            <button onClick={() => onView('people')}><span>Team online</span><strong>4 / 8</strong><small>across 5 time zones</small></button>
+            <button onClick={() => onView('rooms')}><span>Rooms</span><strong>2 live</strong><small>1 scheduled next</small></button>
+            <button onClick={() => onView('deployments')}><span>Release health</span><strong>99.9%</strong><small>0 failed runs</small></button>
           </div>
           <div className="quick-launch-grid">
             <button onClick={() => onView('projects')}><Github size={15} /><span><strong>Projects</strong><small>Open delivery boards</small></span><ArrowUpRight size={13} /></button>
@@ -227,6 +330,7 @@ export function LiveOverview({ onView }: { onView: (view: 'repositories' | 'acti
           </div>
         </section>
       </div>
+
       <section className="panel">
         <div className="panel-head"><div><span className="eyebrow">Workspace stream</span><h2>Recent changes</h2></div><button className="text-link" onClick={() => onView('activity')}>Open stream <ExternalLink size={13} /></button></div>
         <div className="activity-list">{(data.recentActivity ?? []).slice(0, 7).map((item) => <a className="activity-row" href={item.url} target="_blank" rel="noreferrer" key={item.id}><div className="activity-icon"><ActivityGlyph type={item.type} /></div><div className="activity-copy"><strong>{item.title}</strong><span>{item.meta} · {formatWhen(item.timestamp)}</span></div><ExternalLink size={14} className="activity-arrow" /></a>)}</div>
