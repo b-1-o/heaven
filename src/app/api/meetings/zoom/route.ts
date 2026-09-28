@@ -85,6 +85,7 @@ export async function POST(request: Request) {
       start_url?: string
       start_time?: string
       duration?: number
+      password?: string
     }
     if (!response.ok || !meeting.id) return NextResponse.json({ error: 'Zoom meeting creation failed', details: meeting }, { status: response.status })
 
@@ -92,9 +93,9 @@ export async function POST(request: Request) {
     const sql = getSql()
     await sql`
       INSERT INTO heaven_meetings
-        (id, org_id, provider, external_id, title, scheduled_at, duration_minutes, join_url, host_url)
+        (id, org_id, provider, external_id, title, scheduled_at, duration_minutes, join_url, host_url, metadata)
       VALUES
-        (${randomUUID()}, ${orgId}, 'zoom', ${String(meeting.id)}, ${body.title}, ${meeting.start_time ? new Date(meeting.start_time) : new Date(body.startTime)}, ${meeting.duration ?? body.durationMinutes ?? 30}, ${meeting.join_url ?? null}, ${meeting.start_url ?? null})
+        (${randomUUID()}, ${orgId}, 'zoom', ${String(meeting.id)}, ${body.title}, ${meeting.start_time ? new Date(meeting.start_time) : new Date(body.startTime)}, ${meeting.duration ?? body.durationMinutes ?? 30}, ${meeting.join_url ?? null}, ${meeting.start_url ?? null}, ${JSON.stringify({ password: meeting.password ?? null })}::jsonb)
     `
 
     return NextResponse.json({
@@ -105,6 +106,7 @@ export async function POST(request: Request) {
       durationMinutes: meeting.duration,
       joinUrl: meeting.join_url,
       hostUrl: meeting.start_url,
+      password: meeting.password ?? null,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create Zoom meeting'
