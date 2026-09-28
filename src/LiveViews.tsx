@@ -234,7 +234,7 @@ function OverviewTrend({ live }: { live: DashboardData | null }) {
   )
 }
 
-export function LiveOverview({ onView }: { onView: (view: 'repositories' | 'activity' | 'projects' | 'people' | 'rooms' | 'deployments' | 'analytics' | 'meetings') => void }) {
+export function LiveOverview({ onView }: { onView: (view: 'repositories' | 'activity' | 'projects' | 'tasks' | 'people' | 'rooms' | 'deployments' | 'analytics' | 'meetings') => void }) {
   const { data: live, loading, error, reload } = useGithubDashboard()
   if (loading) return <div className="page-body"><div className="panel"><div className="loading-state">Loading workspace signals…</div></div></div>
   const data = live?.connected ? live : mockWorkspace
