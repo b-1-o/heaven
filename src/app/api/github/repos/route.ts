@@ -13,7 +13,10 @@ export async function GET(request: Request) {
     const connection = await githubTokenForWorkspace(orgId)
     if (!connection) return NextResponse.json({ connected: false, repositories: [] })
 
-    if (sync) await syncGithubRepos(orgId)
+    if (sync) {
+      const webhookUrl = new URL('/api/webhooks/github', request.url).toString()
+      await syncGithubRepos(orgId, webhookUrl)
+    }
 
     const sql = getSql()
     const rows = await sql`
