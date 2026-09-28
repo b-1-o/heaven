@@ -371,15 +371,22 @@ export function LiveMeetingsView() {
 
   const load = async () => {
     try {
-      const [integrationData, meetingData, guildData] = await Promise.all([
+      const [integrationData, meetingData] = await Promise.all([
         readJson('/api/integrations'),
         readJson('/api/meetings'),
-        readJson('/api/integrations/discord/guilds'),
       ])
-      setConnectedProviders((integrationData.integrations ?? []).map((item: { provider: string }) => item.provider))
+      const providers = (integrationData.integrations ?? []).map((item: { provider: string }) => item.provider)
+      setConnectedProviders(providers)
       setMeetings(meetingData.meetings ?? [])
-      setGuilds(guildData.guilds ?? [])
-      setSelectedGuild(guildData.selectedGuildId ?? '')
+      if (providers.includes('discord')) {
+        try {
+          const guildData = await readJson('/api/integrations/discord/guilds')
+          setGuilds(guildData.guilds ?? [])
+          setSelectedGuild(guildData.selectedGuildId ?? '')
+        } catch (error) {
+          setNotice(error instanceof Error ? error.message : 'Could not load Discord servers')
+        }
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Failed to load meeting data')
     }
