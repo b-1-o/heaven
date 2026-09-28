@@ -89,3 +89,67 @@ export async function exchangeGithubCode(code: string) {
     error_description?: string
   }>
 }
+
+export type GithubPullRequest = {
+  id: number
+  number: number
+  title: string
+  html_url: string
+  state: 'open' | 'closed'
+  draft?: boolean | null
+  created_at: string
+  updated_at: string
+  merged_at?: string | null
+  user: { login: string; avatar_url: string }
+  head: { ref: string }
+  base: { ref: string }
+}
+
+export type GithubWorkflowRun = {
+  id: number
+  name: string
+  display_title: string
+  html_url: string
+  status: string
+  conclusion: string | null
+  event: string
+  head_branch: string
+  head_sha: string
+  created_at: string
+  updated_at: string
+  run_started_at?: string | null
+  repository?: { full_name: string }
+}
+
+export type GithubDeployment = {
+  id: number
+  sha: string
+  ref: string
+  environment?: string | null
+  description?: string | null
+  created_at: string
+  updated_at: string
+  creator?: { login: string; avatar_url: string }
+  repository_url?: string
+}
+
+export async function githubPullRequests(token: string, owner: string, repo: string) {
+  return githubFetch<GithubPullRequest[]>(
+    token,
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=all&sort=updated&direction=desc&per_page=10`,
+  )
+}
+
+export async function githubWorkflowRuns(token: string, owner: string, repo: string) {
+  return githubFetch<{ total_count: number; workflow_runs: GithubWorkflowRun[] }>(
+    token,
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/runs?per_page=10`,
+  )
+}
+
+export async function githubDeployments(token: string, owner: string, repo: string) {
+  return githubFetch<GithubDeployment[]>(
+    token,
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/deployments?per_page=10`,
+  )
+}
