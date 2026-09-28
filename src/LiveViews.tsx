@@ -498,6 +498,10 @@ export function LiveTeamView() {
       setNotice('Enter a workspace name')
       return
     }
+    if (!createOrganization || !setActive) {
+      setNotice('Workspace management is still loading')
+      return
+    }
     setCreating(true)
     setNotice('')
     try {
