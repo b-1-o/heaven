@@ -91,16 +91,18 @@ export async function POST(request: Request) {
 
     await ensureSchema()
     const sql = getSql()
+    const dbMeetingId = randomUUID()
     await sql`
       INSERT INTO heaven_meetings
         (id, org_id, provider, external_id, title, scheduled_at, duration_minutes, join_url, host_url, metadata)
       VALUES
-        (${randomUUID()}, ${orgId}, 'zoom', ${String(meeting.id)}, ${body.title}, ${meeting.start_time ? new Date(meeting.start_time) : new Date(body.startTime)}, ${meeting.duration ?? body.durationMinutes ?? 30}, ${meeting.join_url ?? null}, ${meeting.start_url ?? null}, ${JSON.stringify({ password: meeting.password ?? null })}::jsonb)
+        (${dbMeetingId}, ${orgId}, 'zoom', ${String(meeting.id)}, ${body.title}, ${meeting.start_time ? new Date(meeting.start_time) : new Date(body.startTime)}, ${meeting.duration ?? body.durationMinutes ?? 30}, ${meeting.join_url ?? null}, ${meeting.start_url ?? null}, ${JSON.stringify({ password: meeting.password ?? null })}::jsonb)
     `
 
     return NextResponse.json({
       provider: 'zoom',
       id: String(meeting.id),
+      dbId: dbMeetingId,
       title: body.title,
       startTime: meeting.start_time,
       durationMinutes: meeting.duration,
