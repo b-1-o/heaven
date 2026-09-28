@@ -194,6 +194,11 @@ function OverviewTrend({ live }: { live: DashboardData | null }) {
     const y = 88 - ((value - min) / Math.max(max - min, 1)) * 68
     return `${x},${y}`
   }).join(' ')
+  const linePath = values.map((value, index) => {
+    const x = (index / (values.length - 1)) * 100
+    const y = 88 - ((value - min) / Math.max(max - min, 1)) * 68
+    return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
+  }).join(' ')
 
   return (
     <section className="panel overview-analytics-panel">
@@ -211,16 +216,29 @@ function OverviewTrend({ live }: { live: DashboardData | null }) {
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Delivery momentum chart">
             <defs>
               <linearGradient id="overviewLine" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="rgba(255,255,255,.28)" />
-                <stop offset="100%" stopColor="rgba(255,255,255,.95)" />
+                <stop offset="0%" stopColor="rgba(255,255,255,.24)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,.98)" />
               </linearGradient>
               <linearGradient id="overviewArea" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="rgba(255,255,255,.14)" />
                 <stop offset="100%" stopColor="rgba(255,255,255,0)" />
               </linearGradient>
+              <filter id="overviewGlow" x="-200%" y="-200%" width="400%" height="400%">
+                <feGaussianBlur stdDeviation="1.5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
             </defs>
             <polygon points={`0,100 ${points} 100,100`} fill="url(#overviewArea)" />
             <polyline points={points} fill="none" stroke="url(#overviewLine)" strokeWidth=".9" vectorEffect="non-scaling-stroke" pathLength="1" className="overview-line" />
+            <g className="overview-orbit" filter="url(#overviewGlow)">
+              <circle r="2.4" className="overview-orbit-halo" />
+              <circle r=".9" className="overview-orbit-core" />
+              <circle r=".22" className="overview-orbit-pulse" />
+              <animateMotion dur="5.8s" repeatCount="indefinite" path={linePath} rotate="auto" />
+            </g>
           </svg>
           <div className="overview-chart-x"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
         </div>
