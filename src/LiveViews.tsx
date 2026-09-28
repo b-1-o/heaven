@@ -224,18 +224,30 @@ function OverviewTrend({ live }: { live: DashboardData | null }) {
                 <stop offset="100%" stopColor="rgba(255,255,255,0)" />
               </linearGradient>
               <filter id="overviewGlow" x="-200%" y="-200%" width="400%" height="400%">
-                <feGaussianBlur stdDeviation="1.5" result="blur" />
+                <feGaussianBlur stdDeviation=".65" result="blur" />
                 <feMerge>
                   <feMergeNode in="blur" />
                   <feMergeNode in="SourceGraphic" />
                 </feMerge>
               </filter>
+              <radialGradient id="overviewStarGlow">
+                <stop offset="0%" stopColor="rgba(255,255,255,.62)" />
+                <stop offset="34%" stopColor="rgba(255,255,255,.22)" />
+                <stop offset="72%" stopColor="rgba(255,255,255,.07)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+              </radialGradient>
             </defs>
             <polygon points={`0,100 ${points} 100,100`} fill="url(#overviewArea)" />
             <polyline points={points} fill="none" stroke="url(#overviewLine)" strokeWidth=".9" vectorEffect="non-scaling-stroke" pathLength="1" className="overview-line" />
             <path id="overview-motion-path" d={linePath} fill="none" stroke="none" />
-            <g className="overview-orbit" filter="url(#overviewGlow)">
-              <circle r="2.35" className="overview-orbit-halo" />
+            <g className="overview-orbit">
+              <circle r="3.8" fill="url(#overviewStarGlow)" className="overview-orbit-halo" />
+              <g className="overview-star-rays">
+                <line x1="0" y1="-3.8" x2="0" y2="-1.45" />
+                <line x1="0" y1="3.8" x2="0" y2="1.45" />
+                <line x1="-3.8" y1="0" x2="-1.45" y2="0" />
+                <line x1="3.8" y1="0" x2="1.45" y2="0" />
+              </g>
               <circle r=".32" className="overview-orbit-core" />
               <circle r=".08" className="overview-orbit-pulse" />
               <animateMotion dur="5.8s" repeatCount="indefinite" rotate="auto">
