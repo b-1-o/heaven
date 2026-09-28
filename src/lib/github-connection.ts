@@ -31,13 +31,19 @@ export async function saveGithubConnection(
 export async function githubTokenForWorkspace(orgId: string) {
   await ensureSchema()
   const sql = getSql()
-  const rows = await sql`
+  const rows = (await sql`
     SELECT access_token, refresh_token, expires_at, account_id, account_name
     FROM heaven_integrations
     WHERE org_id = ${orgId} AND provider = 'github'
     ORDER BY updated_at DESC
     LIMIT 1
-  `
+  `) as unknown as Array<{
+    access_token: string | null
+    refresh_token: string | null
+    expires_at: string | Date | null
+    account_id: string
+    account_name: string | null
+  }>
   if (!rows[0]?.access_token) return null
   return {
     accessToken: decryptText(rows[0].access_token as string),
