@@ -46,6 +46,19 @@ html { min-width: 320px; background: var(--bg); }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--bg); color: var(--text); }
 button, input, select { font: inherit; }
 button { color: inherit; }
+
+a,
+a:visited,
+a:hover,
+a:active {
+  color: var(--text);
+  text-decoration: none;
+}
+
+a:focus-visible {
+  outline: 2px solid rgba(255,255,255,.58);
+  outline-offset: 2px;
+}
 button, select { border: 0; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid rgba(255,255,255,.58); outline-offset: 2px; }
 ::selection { background: rgba(255,255,255,.18); }
