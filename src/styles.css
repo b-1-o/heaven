@@ -18,6 +18,14 @@
   --good: #b5dec9;
   --warn: #ddd0a7;
   --danger: #d9b4b4;
+  --chart-line-start: rgba(255,255,255,.24);
+  --chart-line-end: rgba(255,255,255,.98);
+  --chart-area-start: rgba(255,255,255,.14);
+  --chart-area-end: rgba(255,255,255,0);
+  --chart-star-strong: rgba(255,255,255,.62);
+  --chart-star-mid: rgba(255,255,255,.22);
+  --chart-star-soft: rgba(255,255,255,.07);
+  --chart-star-end: rgba(255,255,255,0);
   --shadow: 0 24px 80px rgba(0, 0, 0, .34);
 }
 
@@ -38,6 +46,14 @@
   --good: #477963;
   --warn: #7a6939;
   --danger: #7f5050;
+  --chart-line-start: rgba(15,17,18,.30);
+  --chart-line-end: rgba(8,10,11,.98);
+  --chart-area-start: rgba(0,0,0,.10);
+  --chart-area-end: rgba(0,0,0,0);
+  --chart-star-strong: rgba(10,12,13,.62);
+  --chart-star-mid: rgba(10,12,13,.22);
+  --chart-star-soft: rgba(10,12,13,.07);
+  --chart-star-end: rgba(10,12,13,0);
   --shadow: 0 24px 70px rgba(51, 58, 62, .16);
 }
 
@@ -446,10 +462,10 @@ kbd { border: 1px solid var(--border); background: rgba(0,0,0,.12); border-radiu
   filter: none;
 }
 .overview-orbit-core {
-  fill: #fff;
+  fill: var(--text);
 }
 .overview-orbit-pulse {
-  fill: rgba(255,255,255,.95);
+  fill: var(--text);
 }
 .overview-orbit::after {
   content: "";
