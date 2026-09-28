@@ -404,6 +404,16 @@ kbd { border: 1px solid var(--border); background: rgba(0,0,0,.12); border-radiu
 .footer span:last-child { display: inline-flex; gap: 6px; align-items: center; }
 .keyboard-icon { display: inline-grid; place-items: center; width: 16px; height: 16px; border: 1px solid var(--border); border-radius: 5px; }
 
+
+@media (max-width: 1180px) {
+  .overview-main-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .overview-analytics-footer { grid-template-columns: 1fr; }
+  .overview-analytics-footer > div { border-bottom: 1px solid var(--border); }
+  .overview-analytics-footer > div:last-child { border-bottom: 0; }
+}
+
 @media (max-width: 1180px) {
   .kanban-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
 
