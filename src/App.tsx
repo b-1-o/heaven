@@ -103,6 +103,40 @@ const statusTone: Record<string, string> = {
   Backlog: 'status-backlog',
 }
 
+function Starfield() {
+  const stars = [
+    [4, 8, 1.2, 0, 10, .52],[11, 28, .8, -2, 13, .34],[17, 71, 1.1, -6, 15, .44],
+    [23, 14, .7, -4, 11, .3],[29, 46, 1.3, -9, 17, .58],[35, 82, .9, -12, 14, .36],
+    [42, 23, .75, -7, 12, .31],[48, 61, 1, -1, 16, .4],[54, 9, 1.2, -8, 18, .48],
+    [61, 36, .7, -10, 13, .28],[67, 77, 1.05, -5, 15, .46],[73, 18, .8, -11, 12, .33],
+    [79, 54, 1.25, -3, 17, .5],[84, 9, .65, -8, 14, .27],[89, 68, 1.1, -6, 16, .42],
+    [94, 32, .8, -2, 12, .31],[7, 52, .65, -9, 14, .3],[14, 92, 1.1, -4, 18, .43],
+    [27, 9, .85, -1, 13, .32],[38, 58, .7, -7, 16, .29],[47, 93, 1.25, -10, 19, .48],
+    [58, 48, .72, -4, 12, .29],[69, 93, .95, -6, 16, .4],[76, 41, .62, -2, 11, .25],
+    [87, 17, 1.15, -9, 17, .46],[97, 82, .72, -5, 13, .3]
+  ]
+
+  return (
+    <div className="starfield" aria-hidden="true">
+      {stars.map(([left, top, size, delay, duration, opacity], index) => (
+        <span
+          key={index}
+          className="starfield-star"
+          style={{
+            left: left + '%',
+            top: top + '%',
+            width: size + 'px',
+            height: size + 'px',
+            opacity,
+            animationDelay: delay + 's',
+            animationDuration: duration + 's',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 function formatTitle(view: View) {
   return view === 'overview' ? 'Overview' : view.charAt(0).toUpperCase() + view.slice(1)
 }
@@ -987,7 +1021,7 @@ export default function App() {
     <div className="app-shell">
       <div className="atmosphere atmosphere-a" />
       <div className="atmosphere atmosphere-b" />
-      <div className="noise" />
+      <div className="noise" /><Starfield />
       <header className="mobile-header glass">
         <button className="icon-button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={19} /></button>
         <div className="brand"><span className="brand-mark"><Sparkles size={13} /></span><strong>HEAVEN</strong></div>
