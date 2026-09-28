@@ -963,7 +963,10 @@ export default function App() {
   const view = viewFromPathname(pathname)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [dark, setDark] = useState(true)
+  const [dark, setDark] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return window.localStorage.getItem('heaven-theme') !== 'light'
+  })
   const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
@@ -986,7 +989,9 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+    const theme = dark ? 'dark' : 'light'
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('heaven-theme', theme)
   }, [dark])
 
   const navigate = (next: View) => {
