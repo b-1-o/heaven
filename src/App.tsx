@@ -1009,7 +1009,7 @@ export default function App() {
           </section>
         ) : null}
 
-        {renderView()}
+        <div className="page-transition" key={view}>{renderView()}</div>
 
         <footer className="footer">
           <span>HEAVEN · Developer Operations</span>
