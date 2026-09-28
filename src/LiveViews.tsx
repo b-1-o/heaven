@@ -233,11 +233,14 @@ function OverviewTrend({ live }: { live: DashboardData | null }) {
             </defs>
             <polygon points={`0,100 ${points} 100,100`} fill="url(#overviewArea)" />
             <polyline points={points} fill="none" stroke="url(#overviewLine)" strokeWidth=".9" vectorEffect="non-scaling-stroke" pathLength="1" className="overview-line" />
+            <path id="overview-motion-path" d={linePath} fill="none" stroke="none" />
             <g className="overview-orbit" filter="url(#overviewGlow)">
               <circle r="2.4" className="overview-orbit-halo" />
               <circle r=".9" className="overview-orbit-core" />
               <circle r=".22" className="overview-orbit-pulse" />
-              <animateMotion dur="5.8s" repeatCount="indefinite" path={linePath} rotate="auto" />
+              <animateMotion dur="5.8s" repeatCount="indefinite" rotate="auto">
+                <mpath href="#overview-motion-path" />
+              </animateMotion>
             </g>
           </svg>
           <div className="overview-chart-x"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
