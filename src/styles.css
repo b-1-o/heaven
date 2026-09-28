@@ -442,8 +442,14 @@ kbd { border: 1px solid var(--border); background: rgba(0,0,0,.12); border-radiu
   transform-origin: center;
 }
 .overview-orbit-halo {
-  fill: rgba(255,255,255,.16);
-  filter: blur(1.8px);
+  fill: url(#overviewStarGlow);
+  filter: none;
+}
+.overview-star-rays {
+  stroke: rgba(255,255,255,.72);
+  stroke-width: .38;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 1.6px rgba(255,255,255,.58));
 }
 .overview-orbit-core {
   fill: #fff;
