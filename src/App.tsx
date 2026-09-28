@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { OrganizationSwitcher, useOrganization } from '@clerk/nextjs'
 import {
   Activity as ActivityIcon,
@@ -51,6 +52,29 @@ import { LiveOverview, LiveActivityView, LiveDeploymentsView, LiveAnalyticsView,
 import { ConferenceRoomsView, GlobalSearchPalette, PeopleDirectoryView } from './WorkspaceFeatures'
 
 type View = 'overview' | 'repositories' | 'projects' | 'tasks' | 'deployments' | 'analytics' | 'activity' | 'meetings' | 'team' | 'people' | 'rooms' | 'integrations' | 'settings'
+
+
+const routeViews: Record<string, View> = {
+  '': 'overview',
+  overview: 'overview',
+  repositories: 'repositories',
+  projects: 'projects',
+  tasks: 'tasks',
+  deployments: 'deployments',
+  analytics: 'analytics',
+  activity: 'activity',
+  meetings: 'meetings',
+  team: 'team',
+  people: 'people',
+  rooms: 'rooms',
+  integrations: 'integrations',
+  settings: 'settings',
+}
+
+function viewFromPathname(pathname: string): View {
+  const key = pathname.replace(/^\//, '').replace(/\/$/, '')
+  return routeViews[key] ?? 'overview'
+}
 
 const navigation: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -900,7 +924,9 @@ function CommandPalette({ onClose, onNavigate }: { onClose: () => void; onNaviga
 
 
 export default function App() {
-  const [view, setView] = useState<View>('overview')
+  const pathname = usePathname()
+  const router = useRouter()
+  const view = viewFromPathname(pathname)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [dark, setDark] = useState(true)
@@ -930,7 +956,7 @@ export default function App() {
   }, [dark])
 
   const navigate = (next: View) => {
-    setView(next)
+    router.push(next === 'overview' ? '/' : `/${next}`)
     setMobileNavOpen(false)
   }
 
@@ -1009,7 +1035,7 @@ export default function App() {
           </section>
         ) : null}
 
-        <div className="page-transition" key={view}>{renderView()}</div>
+        <div className="page-transition" key={pathname}>{renderView()}</div>
 
         <footer className="footer">
           <span>HEAVEN · Developer Operations</span>
