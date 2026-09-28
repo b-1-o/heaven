@@ -41,13 +41,22 @@ export async function saveIntegration(input: {
 export async function getIntegration(orgId: string, provider: string) {
   await ensureSchema()
   const sql = getSql()
-  const rows = await sql`
+  const rows = (await sql`
     SELECT org_id, provider, account_id, account_name, access_token, refresh_token, expires_at, metadata
     FROM heaven_integrations
     WHERE org_id = ${orgId} AND provider = ${provider}
     ORDER BY updated_at DESC
     LIMIT 1
-  `
+  `) as unknown as Array<{
+    org_id: string
+    provider: string
+    account_id: string
+    account_name: string | null
+    access_token: string | null
+    refresh_token: string | null
+    expires_at: string | Date | null
+    metadata: Record<string, unknown> | null
+  }>
   const row = rows[0]
   if (!row) return null
 
@@ -65,11 +74,18 @@ export async function getIntegration(orgId: string, provider: string) {
 export async function listIntegrations(orgId: string) {
   await ensureSchema()
   const sql = getSql()
-  const rows = await sql`
+  const rows = (await sql`
     SELECT provider, account_id, account_name, expires_at, metadata, updated_at
     FROM heaven_integrations
     WHERE org_id = ${orgId}
     ORDER BY provider ASC, updated_at DESC
-  `
+  `) as unknown as Array<{
+    provider: string
+    account_id: string
+    account_name: string | null
+    expires_at: string | Date | null
+    metadata: Record<string, unknown>
+    updated_at: string | Date
+  }>
   return rows
 }
