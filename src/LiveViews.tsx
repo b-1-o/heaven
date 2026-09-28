@@ -91,6 +91,37 @@ type Meeting = {
   metadata: Record<string, unknown>
 }
 
+
+const mockWorkspace: DashboardData = {
+  connected: false,
+  account: { login: 'heaven-team', avatar_url: '', html_url: 'https://github.com', name: 'HEAVEN Workspace' },
+  repositories: [
+    { id: 1, name: 'heaven', full_name: 'b-1-o/heaven', private: false, html_url: 'https://github.com/b-1-o/heaven', default_branch: 'main', pushed_at: '2026-09-28T00:42:00Z', description: 'Developer command center', language: 'TypeScript' },
+    { id: 2, name: 'music', full_name: 'b-1-o/music', private: false, html_url: 'https://github.com/b-1-o/music', default_branch: 'main', pushed_at: '2026-09-27T22:18:00Z', description: 'Music workspace and player', language: 'TypeScript' },
+    { id: 3, name: 'Portfolio', full_name: 'b-1-o/Portfolio', private: false, html_url: 'https://github.com/b-1-o/Portfolio', default_branch: 'main', pushed_at: '2026-09-27T20:11:00Z', description: 'Personal developer portfolio', language: 'TypeScript' },
+    { id: 4, name: 'royal-touch', full_name: 'b-1-o/Royal-Touch', private: false, html_url: 'https://github.com/b-1-o/Royal-Touch', default_branch: 'main', pushed_at: '2026-09-27T18:42:00Z', description: 'Mobile wash booking experience', language: 'TypeScript' },
+  ],
+  recentActivity: [
+    { id: 'm1', type: 'deployment', title: 'Production deployment completed', meta: 'b-1-o/heaven · main', timestamp: '2026-09-28T00:42:00Z', url: 'https://github.com/b-1-o/heaven/actions' },
+    { id: 'm2', type: 'commit', title: 'Expand collaboration workspace', meta: 'b-1-o/heaven · main', timestamp: '2026-09-28T00:45:00Z', url: 'https://github.com/b-1-o/heaven/commits/main' },
+    { id: 'm3', type: 'pull_request', title: 'Improve command center navigation', meta: 'b-1-o/heaven · #48', timestamp: '2026-09-27T23:54:00Z', url: 'https://github.com/b-1-o/heaven/pulls' },
+    { id: 'm4', type: 'workflow', title: 'HEAVEN CI passed', meta: 'b-1-o/heaven · 2m 31s', timestamp: '2026-09-27T23:48:00Z', url: 'https://github.com/b-1-o/heaven/actions' },
+    { id: 'm5', type: 'commit', title: 'Polish portfolio project cards', meta: 'b-1-o/Portfolio · main', timestamp: '2026-09-27T22:18:00Z', url: 'https://github.com/b-1-o/Portfolio/commits/main' },
+  ],
+  workflows: [
+    { id: 101, name: 'HEAVEN CI', html_url: 'https://github.com/b-1-o/heaven/actions', status: 'completed', conclusion: 'success', head_branch: 'main', head_sha: '96515d0a7973488', updated_at: '2026-09-28T00:45:00Z', repositoryFullName: 'b-1-o/heaven' },
+    { id: 102, name: 'HEAVEN Production', html_url: 'https://github.com/b-1-o/heaven/actions', status: 'completed', conclusion: 'success', head_branch: 'main', head_sha: '96515d0a7973488', updated_at: '2026-09-28T00:44:00Z', repositoryFullName: 'b-1-o/heaven' },
+    { id: 103, name: 'Portfolio Build', html_url: 'https://github.com/b-1-o/Portfolio/actions', status: 'in_progress', conclusion: null, head_branch: 'main', head_sha: '3ad7b21', updated_at: '2026-09-27T23:59:00Z', repositoryFullName: 'b-1-o/Portfolio' },
+    { id: 104, name: 'Music Deploy', html_url: 'https://github.com/b-1-o/music/actions', status: 'completed', conclusion: 'success', head_branch: 'main', head_sha: 'b83de12', updated_at: '2026-09-27T22:22:00Z', repositoryFullName: 'b-1-o/music' },
+  ],
+  deployments: [
+    { id: 201, sha: '96515d0a7973488', ref: 'main', environment: 'production', updated_at: '2026-09-28T00:42:00Z', creator: { login: 'b1o' }, repositoryFullName: 'b-1-o/heaven' },
+    { id: 202, sha: '3ad7b21', ref: 'main', environment: 'production', updated_at: '2026-09-27T22:20:00Z', creator: { login: 'b1o' }, repositoryFullName: 'b-1-o/Portfolio' },
+    { id: 203, sha: 'b83de12', ref: 'main', environment: 'production', updated_at: '2026-09-27T21:31:00Z', creator: { login: 'b1o' }, repositoryFullName: 'b-1-o/music' },
+  ],
+  stats: { repositories: 4, privateRepositories: 1, commits: 18, openPullRequests: 3, failedWorkflows: 0, deployments: 12 },
+}
+
 async function readJson(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: 'no-store', ...init })
   const data = await response.json()
