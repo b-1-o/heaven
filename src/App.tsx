@@ -48,8 +48,9 @@ import {
 import { activity, chartSeries, projects, type TaskStatus } from './data'
 import { resetTasks, updateTaskStatus, useTasks } from './services/task-store'
 import { LiveOverview, LiveActivityView, LiveDeploymentsView, LiveAnalyticsView, LiveMeetingsView, LiveTeamView } from './LiveViews'
+import { ConferenceRoomsView, GlobalSearchPalette, PeopleDirectoryView } from './WorkspaceFeatures'
 
-type View = 'overview' | 'repositories' | 'projects' | 'tasks' | 'deployments' | 'analytics' | 'activity' | 'meetings' | 'team' | 'integrations' | 'settings'
+type View = 'overview' | 'repositories' | 'projects' | 'tasks' | 'deployments' | 'analytics' | 'activity' | 'meetings' | 'team' | 'people' | 'rooms' | 'integrations' | 'settings'
 
 const navigation: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -60,6 +61,8 @@ const navigation: { id: View; label: string; icon: typeof LayoutDashboard }[] = 
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'activity', label: 'Activity', icon: ActivityIcon },
   { id: 'team', label: 'Team', icon: Users },
+  { id: 'people', label: 'People', icon: UserRound },
+  { id: 'rooms', label: 'Conference rooms', icon: Video },
   { id: 'integrations', label: 'Integrations', icon: GitBranch },
 ]
 
@@ -930,6 +933,8 @@ export default function App() {
       case 'activity': return <LiveActivityView />
       case 'meetings': return <LiveMeetingsView />
       case 'team': return <LiveTeamView />
+      case 'people': return <PeopleDirectoryView onView={navigate} onNotify={notify} />
+      case 'rooms': return <ConferenceRoomsView onView={navigate} onNotify={notify} />
       case 'integrations': return <IntegrationsView />
       case 'settings': return <SettingsView dark={dark} setDark={setDark} />
     }
@@ -993,7 +998,7 @@ export default function App() {
         </footer>
       </main>
 
-      {paletteOpen ? <CommandPalette onClose={() => setPaletteOpen(false)} onNavigate={navigate} /> : null}
+      {paletteOpen ? <GlobalSearchPalette onClose={() => setPaletteOpen(false)} onNavigate={navigate} /> : null}
       {notice ? <div className="toast glass"><CheckCircle2 size={15} /><span>{notice}</span></div> : null}
     </div>
   )
