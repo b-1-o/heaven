@@ -471,6 +471,89 @@ kbd { border: 1px solid var(--border); background: rgba(0,0,0,.12); border-radiu
   }
 }
 
+
+/* Permanent HEAVEN starfall */
+.starfield {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.starfield-star {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 5px rgba(255,255,255,.52);
+  transform: translate3d(0,-8vh,0);
+  animation-name: heavenStarFall, heavenStarTwinkle;
+  animation-timing-function: linear, ease-in-out;
+  animation-iteration-count: infinite, infinite;
+}
+@keyframes heavenStarFall {
+  from { transform: translate3d(0,-8vh,0); }
+  to { transform: translate3d(14px,112vh,0); }
+}
+@keyframes heavenStarTwinkle {
+  0%,100% { opacity: .18; }
+  50% { opacity: .82; }
+}
+:root[data-theme="light"] .starfield-star {
+  box-shadow: 0 0 5px rgba(0,0,0,.22);
+}
+
+/* Embedded Zoom room */
+.zoom-embed-shell {
+  position: relative;
+  min-height: 540px;
+  height: min(66vh, 680px);
+  border-radius: 15px;
+  overflow: hidden;
+  background: #080a0b;
+  border: 1px solid rgba(255,255,255,.075);
+}
+.zoom-embed-root {
+  width: 100%;
+  height: 100%;
+  min-height: 540px;
+}
+.zoom-embed-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 44%, rgba(255,255,255,.075), rgba(7,8,9,.76) 58%);
+  color: var(--text);
+  backdrop-filter: blur(8px);
+}
+.zoom-embed-overlay span { color: var(--muted); font-size: 9px; }
+.zoom-embed-overlay strong { font-size: 13px; letter-spacing: -.015em; }
+.zoom-embed-overlay.error { pointer-events: none; }
+.zoom-embed-overlay.error svg { color: var(--danger); }
+.zoom-embed-spinner {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.13);
+  border-top-color: rgba(255,255,255,.9);
+  animation: heavenSpin .75s linear infinite;
+}
+@keyframes heavenSpin { to { transform: rotate(360deg); } }
+.zoom-room-controls { justify-content:space-between; }
+.zoom-control-note {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  margin-right:auto;
+  color:var(--muted);
+  font-size:9px;
+}
+
 @media (max-width: 1180px) {
   .overview-main-grid { grid-template-columns: 1fr; }
 }
