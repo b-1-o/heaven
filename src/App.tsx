@@ -349,7 +349,7 @@ function RepositoriesView() {
     }
   }
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => { void load(true) }, [])
 
   const openCommits = async (repo: string) => {
     setExpanded(expanded === repo ? null : repo)
