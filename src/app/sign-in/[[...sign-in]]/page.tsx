@@ -16,11 +16,11 @@ export default function SignInPage() {
           appearance={{
             variables: {
               colorBackground: 'rgba(17, 19, 20, .88)',
-              colorText: '#f2f3f4',
-              colorTextSecondary: '#90969b',
+              colorForeground: '#f2f3f4',
+              colorMutedForeground: '#90969b',
               colorPrimary: '#e5e8ea',
-              colorInputBackground: 'rgba(255,255,255,.035)',
-              colorInputText: '#f2f3f4',
+              colorInput: 'rgba(255,255,255,.035)',
+              colorInputForeground: '#f2f3f4',
             },
             elements: {
               card: 'glass-auth-card',
