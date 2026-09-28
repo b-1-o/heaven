@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSql, ensureSchema } from '@/lib/db'
+import { ensureSchema, getSql } from '@/lib/db'
 import { getWorkspaceId } from '@/lib/workspace'
 
 export async function GET() {
@@ -8,10 +8,10 @@ export async function GET() {
     await ensureSchema()
     const sql = getSql()
     const meetings = await sql`
-      SELECT id, provider, external_id, title, scheduled_at, duration_minutes, join_url, host_url, metadata
+      SELECT id, provider, external_id, title, scheduled_at, duration_minutes, join_url, host_url, metadata, created_at
       FROM heaven_meetings
       WHERE org_id = ${orgId}
-      ORDER BY scheduled_at DESC
+      ORDER BY scheduled_at ASC
       LIMIT 100
     `
     return NextResponse.json({ meetings })
