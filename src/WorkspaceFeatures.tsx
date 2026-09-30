@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   BriefcaseBusiness,
   CalendarDays,
+  ExternalLink,
   Camera,
   Check,
   ChevronRight,
@@ -193,149 +194,15 @@ export function PeopleDirectoryView({ onView, onNotify }: { onView: (view: 'proj
   )
 }
 
-type ZoomEmbeddedClient = {
-  init: (options: { zoomAppRoot: HTMLElement; language?: string; assetPath?: string }) => Promise<void>
-  join: (options: { signature: string; meetingNumber: string; password: string; userName: string; zak?: string }) => Promise<void>
-  leave?: () => Promise<void> | void
-}
-
-type ZoomEmbeddedApi = {
-  createClient: () => ZoomEmbeddedClient
-}
-
-declare global {
-  interface Window {
-    ZoomMtgEmbedded?: ZoomEmbeddedApi
-    __heavenZoomSdkPromise?: Promise<void>
-  }
-}
-
-function loadExternalScript(src: string) {
-  return new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${src}"]`)
-    if (existing) {
-      resolve()
-      return
-    }
-    const script = document.createElement('script')
-    script.src = src
-    script.async = false
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Could not load Zoom SDK asset'))
-    document.head.appendChild(script)
+function openZoomMeeting(meetingNumber: string, password = '') {
+  const cleanMeetingNumber = meetingNumber.replace(/\s/g, '')
+  const params = new URLSearchParams({
+    action: 'join',
+    confno: cleanMeetingNumber,
   })
-}
+  if (password) params.set('pwd', password)
 
-async function ensureZoomEmbeddedSdk() {
-  if (window.ZoomMtgEmbedded) return
-  if (window.__heavenZoomSdkPromise) return window.__heavenZoomSdkPromise
-
-  const version = '6.5.0'
-  window.__heavenZoomSdkPromise = (async () => {
-    const sources = [
-      `https://source.zoom.us/${version}/lib/vendor/react.min.js`,
-      `https://source.zoom.us/${version}/lib/vendor/react-dom.min.js`,
-      `https://source.zoom.us/${version}/lib/vendor/redux.min.js`,
-      `https://source.zoom.us/${version}/lib/vendor/redux-thunk.min.js`,
-      `https://source.zoom.us/${version}/lib/vendor/lodash.min.js`,
-      `https://source.zoom.us/${version}/zoom-meeting-embedded-${version}.min.js`,
-    ]
-    for (const source of sources) await loadExternalScript(source)
-    if (!window.ZoomMtgEmbedded) throw new Error('Zoom Meeting SDK did not initialize')
-  })()
-
-  return window.__heavenZoomSdkPromise
-}
-
-function ZoomMeetingEmbed({
-  meetingNumber,
-  password = '',
-  onError,
-}: {
-  meetingNumber: string
-  password?: string
-  onError: (message: string) => void
-}) {
-  const rootRef = useRef<HTMLDivElement | null>(null)
-  const clientRef = useRef<ZoomEmbeddedClient | null>(null)
-  const [status, setStatus] = useState<'loading' | 'joining' | 'live' | 'error'>('loading')
-  const onErrorRef = useRef(onError)
-
-  useEffect(() => {
-    onErrorRef.current = onError
-  }, [onError])
-
-  useEffect(() => {
-    let cancelled = false
-
-    const join = async () => {
-      try {
-        setStatus('loading')
-        const response = await fetch(`/api/meetings/zoom/sdk?meetingNumber=${encodeURIComponent(meetingNumber)}&role=1`, { cache: 'no-store' })
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error ?? 'Zoom authorization failed')
-
-        await ensureZoomEmbeddedSdk()
-        if (cancelled || !rootRef.current || !window.ZoomMtgEmbedded) return
-
-        const client = window.ZoomMtgEmbedded.createClient()
-        clientRef.current = client
-        setStatus('joining')
-        await client.init({
-          zoomAppRoot: rootRef.current,
-          language: 'en-US',
-          assetPath: 'https://source.zoom.us/6.5.0/lib/av',
-        })
-        if (cancelled) return
-
-        await client.join({
-          signature: data.signature,
-          meetingNumber: data.meetingNumber,
-          password: data.password ?? password ?? '',
-          userName: data.userName ?? 'Erik',
-          zak: data.zak ?? undefined,
-        })
-        if (!cancelled) setStatus('live')
-      } catch (error) {
-        if (cancelled) return
-        const message = error instanceof Error ? error.message : 'Unable to join Zoom'
-        setStatus('error')
-        onErrorRef.current(message)
-      }
-    }
-
-    void join()
-
-    return () => {
-      cancelled = true
-      const client = clientRef.current
-      clientRef.current = null
-      try {
-        const result = client?.leave?.()
-        if (result && typeof result.then === 'function') void result.catch(() => {})
-      } catch {}
-    }
-  }, [meetingNumber, password])
-
-  return (
-    <div className="zoom-embed-shell">
-      <div ref={rootRef} id="meetingSDKElement" className="zoom-embed-root" />
-      {status === 'loading' || status === 'joining' ? (
-        <div className="zoom-embed-overlay">
-          <div className="zoom-embed-spinner" />
-          <strong>{status === 'loading' ? 'Loading Zoom' : 'Joining conference'}</strong>
-          <span>Preparing your private meeting space…</span>
-        </div>
-      ) : null}
-      {status === 'error' ? (
-        <div className="zoom-embed-overlay error">
-          <Video size={20} />
-          <strong>Zoom could not start</strong>
-          <span>Check the Zoom connection and Meeting SDK permissions.</span>
-        </div>
-      ) : null}
-    </div>
-  )
+  window.location.href = `zoommtg://zoom.us/join?${params.toString()}`
 }
 
 export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meetings') => void; onNotify: (message: string) => void }) {
@@ -425,7 +292,8 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
     setJoined(true)
 
     if (activeRoom.zoomMeetingNumber) {
-      onNotify('Joining ' + activeRoom.name)
+      onNotify('Opening ' + activeRoom.name + ' in Zoom')
+      openZoomMeeting(activeRoom.zoomMeetingNumber, activeRoom.zoomPassword)
       return
     }
 
@@ -568,11 +436,16 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
             <span className="room-time">{activeRoom.start} · {activeRoom.duration}</span>
           </div>
           {joined && activeRoom.zoomMeetingNumber ? (
-            <ZoomMeetingEmbed
-              meetingNumber={activeRoom.zoomMeetingNumber}
-              password={activeRoom.zoomPassword}
-              onError={(message) => setZoomError(message)}
-            />
+            <div className="video-grid zoom-external-stage">
+              <div className="video-empty">
+                <Video size={22} />
+                <strong>Zoom is opening</strong>
+                <span>The conference will continue in the Zoom desktop app.</span>
+                <button className="glass-button solid" onClick={() => openZoomMeeting(activeRoom.zoomMeetingNumber!, activeRoom.zoomPassword)}>
+                  <ExternalLink size={14} /> Reopen Zoom
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="video-grid">
               {[...activeRoom.participants, ...(activeRoom.status === 'Live' && activeRoom.participants.length < 6 ? ['+'] : [])].slice(0, 6).map((initials, index) => (
@@ -587,8 +460,8 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
           )}
           {joined && activeRoom.zoomMeetingNumber ? (
             <div className="room-controls zoom-room-controls">
-              <span className="zoom-control-note"><Radio size={14} /> Zoom is embedded in HEAVEN</span>
-              <button className="room-control danger" onClick={() => { setJoined(false); onNotify('You left the room') }}><Phone size={16} /><span>Leave</span></button>
+              <span className="zoom-control-note"><ExternalLink size={14} /> Zoom desktop app</span>
+              <button className="room-control danger" onClick={() => { setJoined(false); onNotify('Room closed') }}><Phone size={16} /><span>Close</span></button>
             </div>
           ) : (
             <div className="room-controls">
