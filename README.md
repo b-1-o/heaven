@@ -1,74 +1,57 @@
 # HEAVEN
 
-**HEAVEN is a Developer Command Center** — a fog / glass workspace that brings source control, engineering activity, deployments, meetings and team collaboration into one product.
+> A developer command center for repositories, engineering activity, deployments, meetings, integrations, and team collaboration.
 
-## Product
+HEAVEN is a full-stack workspace designed to bring everyday developer operations into one focused interface. The product combines a glassmorphism UI with authenticated integrations and persistent workspace data.
 
-- **Repositories** — connect GitHub and see the repositories available to the workspace.
-- **Commits** — inspect recent commits directly from HEAVEN.
-- **Teams** — create/switch workspaces with Clerk Organizations and invite members by email.
-- **Meetings** — connect Zoom to create real Zoom meetings, or connect Discord and schedule server events.
-- **Integrations** — one place to manage connected services.
-- **Workspace data** — persisted in Neon Postgres.
-- **Security** — OAuth tokens are encrypted before they are written to the database.
-- **Glass UI** — the existing misty, translucent visual system stays intact.
+## Features
 
-## Stack
+- GitHub repository and commit views
+- Workspace and team management
+- Clerk Organizations integration
+- GitHub OAuth integration
+- Zoom meeting integration
+- Discord event integration
+- Neon PostgreSQL persistence
+- Encrypted integration tokens
+- Glass / fog inspired interface
+- Authenticated API routes and OAuth callbacks
+- Vercel-ready production architecture
 
-- Next.js 16.3
-- React 19
+## Tech Stack
+
+- Next.js
+- React
 - TypeScript
-- Neon Postgres
+- Neon PostgreSQL
+- Clerk
 - GitHub OAuth
 - Zoom OAuth
-- Vercel for production
+- Vercel
+- Lucide React
 
-## Local
+## Getting Started
 
 ```bash
 npm install
 npm run dev
 ```
 
-Copy `.env.example` to `.env.local` and fill the service credentials.
+Create `.env.local` from `.env.example` and configure the required service credentials.
 
-## Production services
+## Production
 
-### Neon
+HEAVEN is designed to run as a Next.js server application. Static hosting is not sufficient because the application uses authenticated API routes and OAuth callbacks.
 
-Create a Postgres database and set `DATABASE_URL`. HEAVEN creates its small application schema lazily on the first authenticated API request.
+## Roadmap
 
-### GitHub
+- GitHub App installation and webhooks
+- Background synchronization
+- Token rotation and revocation UI
+- Workspace audit logs
+- More granular permissions and roles
 
-Create a GitHub OAuth App and use:
+## Project
 
-`https://YOUR-DOMAIN/api/integrations/github/callback`
-
-The current implementation requests `read:user user:email repo`. GitHub notes that OAuth Apps are broad at repository scope; for a hardened multi-tenant product, the next security step is migrating the connector to a GitHub App with fine-grained permissions and webhooks.
-
-### Zoom
-
-Create a Zoom OAuth app and use:
-
-`https://YOUR-DOMAIN/api/integrations/zoom/callback`
-
-The app needs permission to create meetings for the connected user.
-
-## CI / deployment
-
-GitHub Actions verifies:
-
-```bash
-npm install
-npm run build
-```
-
-Production should run as a Next.js server application rather than a static GitHub Pages export because HEAVEN contains authenticated API routes and OAuth callbacks.
-
-## Hardening roadmap
-
-- GitHub App installation + webhook ingestion for pushes, pull requests, workflow runs and deployments.
-- Background sync jobs.
-- Encrypted token rotation and revocation UI.
-- Audit log storage for workspace actions.
-- Fine-grained organization roles and permissions.
+**Live:** https://heaven-b1o.vercel.app/  
+**Repository:** https://github.com/b-1-o/heaven
