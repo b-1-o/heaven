@@ -100,7 +100,7 @@ export async function getZoomAccessToken(): Promise<string> {
   }
 }
 
-function getZoomErrorMessage(status: number, body: string) {
+function getZoomErrorMessage(body: string) {
   try {
     const parsed = JSON.parse(body) as {
       message?: unknown
@@ -150,12 +150,21 @@ async function requestZoom(
   let response = await send()
 
   if (response.status === 401) {
+    const firstResponseBody = await response.text()
+
+    console.error('Zoom API request failed', {
+      status: 401,
+      path,
+      body: firstResponseBody,
+      retrying: true,
+    })
+
     clearZoomAccessTokenCache()
 
     try {
       token = await getZoomAccessToken()
     } catch {
-      throw new ZoomApiError(401, 'Unauthorized', '')
+      throw new ZoomApiError(401, getZoomErrorMessage(firstResponseBody), firstResponseBody)
     }
 
     response = await send()
@@ -163,7 +172,7 @@ async function requestZoom(
 
   if (!response.ok) {
     const responseBody = await response.text()
-    const message = getZoomErrorMessage(response.status, responseBody)
+    const message = getZoomErrorMessage(responseBody)
 
     console.error('Zoom API request failed', {
       status: response.status,
