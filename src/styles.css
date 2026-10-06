@@ -935,3 +935,36 @@ kbd { border: 1px solid var(--border); background: rgba(0,0,0,.12); border-radiu
   .quick-launch-grid { grid-template-columns:1fr; }
   .activity-summary-grid, .deployment-summary-grid { grid-template-columns:1fr 1fr; }
 }
+
+
+.zoom-meeting-result {
+  display: grid;
+  gap: 10px;
+  margin: 0 17px 14px;
+  padding: 13px;
+  border: 1px solid var(--border);
+}
+.zoom-meeting-topic {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+}
+.zoom-meeting-link-wrap {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 8px;
+}
+.zoom-meeting-link {
+  color: var(--text);
+  font-size: 9px;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.zoom-meeting-link:hover { text-decoration: underline; }
+.zoom-meeting-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
