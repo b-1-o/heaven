@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getIntegration } from '@/lib/integrations'
-import { getWorkspaceId } from '@/lib/workspace'
 import { ensureSchema, getSql } from '@/lib/db'
-import { deleteZoomMeeting } from '@/lib/zoom-server'
+import { getWorkspaceId } from '@/lib/workspace'
+import { ZoomApiError, deleteZoomMeeting } from '@/lib/zoom-server'
 
 export async function DELETE(
   request: Request,
@@ -13,21 +12,42 @@ export async function DELETE(
     const orgId = await getWorkspaceId()
     await ensureSchema()
     const sql = getSql()
+
     const rows = await sql`
       SELECT id, provider, external_id, metadata
       FROM heaven_meetings
       WHERE id = ${id}::uuid AND org_id = ${orgId}
       LIMIT 1
-    ` as Array<{ id: string; provider: string; external_id: string | null; metadata: { authMode?: string } | null }>
+    ` as Array<{
+      id: string
+      provider: string
+      external_id: string | null
+      metadata: { authMode?: string } | null
+    }>
 
     const meeting = rows[0]
-    if (!meeting) return NextResponse.json({ error: 'Meeting not found' }, { status: 404 })
+    if (!meeting) {
+      return NextResponse.json({ error: 'Meeting not found' }, { status: 404 })
+    }
 
     if (meeting.provider === 'zoom' && meeting.external_id) {
       try {
         await deleteZoomMeeting(meeting.external_id)
       } catch (error) {
-    if (error instanceof Error && error.name === 'ZoomApiError') {
+        if (!(error instanceof ZoomApiError && error.status === 404)) {
+          throw error
+        }
+      }
+    }
+
+    await sql`
+      DELETE FROM heaven_meetings
+      WHERE id = ${id}::uuid AND org_id = ${orgId}
+    `
+
+    return NextResponse.json({ deleted: true, id })
+  } catch (error) {
+    if (error instanceof ZoomApiError) {
       return NextResponse.json({ error: error.message }, { status: 502 })
     }
 
