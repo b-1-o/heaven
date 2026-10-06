@@ -46,35 +46,35 @@ npm install
 npm run dev
 ```
 
-## Настройка Zoom API
+## Zoom API Setup
 
-Conference Rooms создаёт настоящие Zoom-встречи через **Server-to-Server OAuth**. Пользовательский Zoom OAuth redirect для этого сценария не нужен.
+Conference Rooms creates real Zoom meetings through **Server-to-Server OAuth**. No user-facing Zoom OAuth redirect is required for this flow.
 
-### 1. Создайте Server-to-Server OAuth приложение
+### 1. Create a Server-to-Server OAuth app
 
-Откройте [Zoom App Marketplace](https://marketplace.zoom.us/) и:
+Open the [Zoom App Marketplace](https://marketplace.zoom.us/) and:
 
-1. Перейдите в **Develop → Build an App**.
-2. Выберите **Server-to-Server OAuth**.
-3. Создайте приложение.
-4. На странице **App Credentials** сохраните:
+1. Go to **Develop → Build an App**.
+2. Select **Server-to-Server OAuth**.
+3. Create the application.
+4. On the **App Credentials** page, copy:
    - **Account ID**
    - **Client ID**
    - **Client Secret**
-5. В **Scopes** добавьте:
+5. Under **Scopes**, add:
    - `meeting:write:admin`
    - `meeting:read:admin`
    - `meeting:delete:admin`
    - `user:read:admin`
-6. Активируйте приложение.
+6. Activate the application.
 
-Zoom документирует Server-to-Server OAuth как двухшаговый серверный flow: приложение получает access token через `account_credentials`, после чего использует этот токен для API-запросов. У S2S access token нет refresh token; новый токен получают повторным запросом к `/oauth/token`. Срок жизни токена — один час. 
+Zoom Server-to-Server OAuth uses the `account_credentials` grant to obtain an access token for server-side API requests. S2S OAuth does not use a refresh token; when the access token expires, HEAVEN requests a new one from `/oauth/token`.
 
-Для создания встречи HEAVEN использует Zoom Meetings API `POST /v2/users/{userId}/meetings`, где `{userId}` задаётся значением `ZOOM_USER_EMAIL`. Zoom также указывает `meeting:write:admin` как scope для создания встреч.
+HEAVEN creates meetings through the Zoom Meetings API endpoint `POST /v2/users/{userId}/meetings`, using the value of `ZOOM_USER_EMAIL` as the target Zoom user.
 
-### 2. Переменные окружения
+### 2. Environment variables
 
-Добавьте в локальный `.env.local`:
+For local development, add the following to `.env.local`:
 
 ```env
 ZOOM_ACCOUNT_ID=your-zoom-account-id
@@ -83,57 +83,57 @@ ZOOM_CLIENT_SECRET=your-zoom-client-secret
 ZOOM_USER_EMAIL=owner@example.com
 ```
 
-`ZOOM_USER_EMAIL` — **email владельца Zoom-аккаунта/пользователя, на котором должны создаваться встречи**.
+`ZOOM_USER_EMAIL` is the **email address of the Zoom account owner/user on whose account the meetings should be created**.
 
-Не используйте `NEXT_PUBLIC_` для Zoom credentials и никогда не коммитьте реальные секреты в Git.
+Never use `NEXT_PUBLIC_` for Zoom credentials and never commit real secrets to Git.
 
-### 3. Добавьте переменные в Vercel
+### 3. Configure Vercel
 
-Откройте:
+Open:
 
 **Vercel → Project → Settings → Environment Variables**
 
-Добавьте:
+Add:
 
 | Variable | Value | Vercel type |
 | --- | --- | --- |
-| `ZOOM_ACCOUNT_ID` | Account ID из Zoom Marketplace | Config |
-| `ZOOM_CLIENT_ID` | Client ID из Zoom Marketplace | Config |
-| `ZOOM_CLIENT_SECRET` | Client Secret из Zoom Marketplace | **Secret** |
-| `ZOOM_USER_EMAIL` | Email владельца Zoom-аккаунта | Config |
+| `ZOOM_ACCOUNT_ID` | Account ID from Zoom Marketplace | Config |
+| `ZOOM_CLIENT_ID` | Client ID from Zoom Marketplace | Config |
+| `ZOOM_CLIENT_SECRET` | Client Secret from Zoom Marketplace | **Secret** |
+| `ZOOM_USER_EMAIL` | Email address of the Zoom account owner/user | Config |
 
-Выберите нужные окружения: **Production**, **Preview** и/или **Development**.
+Choose the environments where the app should have access to them: **Production**, **Preview**, and/or **Development**.
 
-После изменения переменных окружения нужен **новый deployment / redeploy**, чтобы новый runtime получил значения.
+After changing environment variables, create a **new deployment / redeploy** so the new runtime receives the updated values.
 
-### 4. Как работает создание
+### 4. How meeting creation works
 
-Браузер отправляет только:
+The browser sends only:
 
 `POST /api/zoom/create-meeting`
 
-с:
+with:
 
 - `topic`
 - `startTime`
 - `duration`
 - `timezone`
 
-Сервер:
+The server then:
 
-1. Проверяет Clerk authentication.
-2. Валидирует тему, дату, duration и timezone.
-3. Получает S2S access token.
-4. Вызывает Zoom с серверным Bearer token.
-5. Если Zoom отвечает **401**, очищает кеш, получает новый access token и повторяет исходный запрос **ровно один раз**.
-6. Если второй запрос тоже возвращает 401, клиент получает понятную ошибку `Zoom API error: 401 ...`.
-7. При любом другом non-2xx ответе Zoom ошибка логируется только на сервере, а клиент получает статус **502** и сообщение формата `Zoom API error: {status} {message}`.
+1. Verifies Clerk authentication.
+2. Validates the topic, start time, duration, and timezone.
+3. Gets a Server-to-Server OAuth access token.
+4. Calls the Zoom API with a server-side Bearer token.
+5. If Zoom returns **401**, clears the cached token, obtains a new token, and retries the original request **exactly once**.
+6. If the retry also returns 401, the client receives a clear error such as `Zoom API error: 401 ...`.
+7. For other non-2xx Zoom responses, the response body is logged server-side and the client receives HTTP **502** with an error in the format `Zoom API error: {status} {message}`.
 
-Client Secret и access token никогда не отправляются клиентскому JavaScript.
+The Zoom Client Secret and access token are never exposed to client-side JavaScript.
 
 ### 5. Conference Rooms
 
-В разделе **Conference Rooms** доступны:
+The **Conference Rooms** interface provides:
 
 - Topic
 - Start time
@@ -145,10 +145,10 @@ Client Secret и access token никогда не отправляются кл�
 - Open in browser
 - Copy link
 
-Часовой пояс по умолчанию определяется через `Intl.DateTimeFormat().resolvedOptions().timeZone`, если он входит в поддерживаемый список. В противном случае используется UTC.
+The default timezone is detected with `Intl.DateTimeFormat().resolvedOptions().timeZone` when it is included in the supported timezone list. Otherwise, UTC is used.
 
 ### 6. Server-side deletion
 
-Созданные через S2S-встречи записываются в `heaven_meetings` с метаданными `authMode: "s2s"`.
+S2S-created meetings are stored in `heaven_meetings` with `authMode: "s2s"` metadata.
 
-Удаление использует тот же серверный S2S OAuth client и также выполняется только на сервере.
+Deleting a meeting uses the same server-side S2S OAuth client and never sends Zoom credentials to the browser.
