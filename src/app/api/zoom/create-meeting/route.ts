@@ -137,6 +137,7 @@ export async function POST(request: Request) {
     }
 
     const dbMeetingId = randomUUID()
+    let persisted = false
 
     try {
       await ensureSchema()
@@ -168,6 +169,7 @@ export async function POST(request: Request) {
             })}::jsonb
           )
       `
+      persisted = true
     } catch (databaseError) {
       console.error('Failed to persist Zoom meeting locally', databaseError)
     }
@@ -180,7 +182,7 @@ export async function POST(request: Request) {
       startTime: meeting.start_time ?? startTime,
       duration: meeting.duration ?? Math.round(duration),
       timezone: timezone || null,
-      dbId: dbMeetingId,
+      dbId: persisted ? dbMeetingId : null,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create Zoom meeting'
