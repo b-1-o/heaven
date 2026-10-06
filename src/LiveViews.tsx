@@ -474,9 +474,11 @@ export function LiveMeetingsView() {
         readJson('/api/integrations'),
         readJson('/api/meetings'),
       ])
+
       const providers = (integrationData.integrations ?? []).map((item: { provider: string }) => item.provider)
       setConnectedProviders(providers)
       setMeetings(meetingData.meetings ?? [])
+
       if (providers.includes('discord')) {
         try {
           const guildData = await readJson('/api/integrations/discord/guilds')
@@ -495,8 +497,12 @@ export function LiveMeetingsView() {
 
   const connected = connectedProviders.includes(provider)
 
-  const connect = () => {
-    window.location.href = provider === 'zoom' ? '/api/integrations/zoom/start' : '/api/integrations/discord/start'
+  const openZoomRooms = () => {
+    window.location.href = '/rooms'
+  }
+
+  const connectDiscord = () => {
+    window.location.href = '/api/integrations/discord/start'
   }
 
   const selectGuild = async (guildId: string) => {
@@ -514,24 +520,44 @@ export function LiveMeetingsView() {
     }
   }
 
-  const create = async () => {
+  const createDiscordEvent = async () => {
     if (!title || !startTime) {
       setNotice('Enter a title and start time')
       return
     }
+
     setLoading(true)
     setNotice('')
+
     try {
-      const data = await readJson('/api/meetings/' + provider, {
+      const data = await readJson('/api/meetings/discord', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, startTime, durationMinutes: Number(duration) }),
+        body: JSON.stringify({
+          title,
+          startTime,
+          durationMinutes: Number(duration),
+        }),
       })
-      setMeetings((current) => [...current, { id: 'local-' + Date.now(), provider, title: data.title, scheduled_at: data.startTime, duration_minutes: data.durationMinutes, join_url: data.joinUrl ?? null, host_url: data.hostUrl ?? null, metadata: {} }].sort((a, b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at)))
+
+      setMeetings((current) => [
+        ...current,
+        {
+          id: 'local-' + Date.now(),
+          provider: 'discord',
+          title: data.title,
+          scheduled_at: data.startTime,
+          duration_minutes: data.durationMinutes,
+          join_url: data.joinUrl ?? null,
+          host_url: data.hostUrl ?? null,
+          metadata: {},
+        },
+      ].sort((a, b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at)))
+
       setTitle('')
-      setNotice((provider === 'zoom' ? 'Zoom meeting' : 'Discord event') + ' created')
+      setNotice('Discord event created')
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Meeting creation failed')
+      setNotice(error instanceof Error ? error.message : 'Discord event creation failed')
     } finally {
       setLoading(false)
     }
@@ -539,45 +565,77 @@ export function LiveMeetingsView() {
 
   return (
     <div className="page-body">
-      <div className="section-toolbar"><div><span className="eyebrow">Team communication</span><h1>Meetings</h1><p>Create real Zoom meetings or Discord scheduled events from the workspace.</p></div><div className="segmented"><button className={provider === 'zoom' ? 'selected' : ''} onClick={() => setProvider('zoom')}>Zoom</button><button className={provider === 'discord' ? 'selected' : ''} onClick={() => setProvider('discord')}>Discord</button></div></div>
+      <div className="section-toolbar">
+        <div>
+          <span className="eyebrow">Team communication</span>
+          <h1>Meetings</h1>
+          <p>Manage Zoom meetings and Discord scheduled events from the workspace.</p>
+        </div>
+        <div className="segmented">
+          <button className={provider === 'zoom' ? 'selected' : ''} onClick={() => setProvider('zoom')}>Zoom</button>
+          <button className={provider === 'discord' ? 'selected' : ''} onClick={() => setProvider('discord')}>Discord</button>
+        </div>
+      </div>
 
-      {!connected ? (
+      {provider === 'zoom' ? (
         <section className="connect-hero glass-card">
-          <div className="connect-icon">{provider === 'zoom' ? <Video size={26} /> : <Users size={26} />}</div>
-          <div><h2>Connect {provider === 'zoom' ? 'Zoom' : 'Discord'}</h2><p>{provider === 'zoom' ? 'Authorize access to create meetings on your Zoom account.' : 'Authorize Discord, choose a server, and create scheduled events through its bot.'}</p></div>
-          <button className="glass-button solid" onClick={connect}>Connect {provider === 'zoom' ? 'Zoom' : 'Discord'}</button>
+          <div className="connect-icon"><Video size={26} /></div>
+          <div>
+            <h2>Zoom is configured server-side</h2>
+            <p>Conference Rooms uses Server-to-Server OAuth, so no user OAuth connection is required.</p>
+          </div>
+          <button className="glass-button solid" onClick={openZoomRooms}>Create Zoom meeting</button>
+        </section>
+      ) : !connected ? (
+        <section className="connect-hero glass-card">
+          <div className="connect-icon"><Users size={26} /></div>
+          <div>
+            <h2>Connect Discord</h2>
+            <p>Authorize Discord, choose a server, and create scheduled events through its bot.</p>
+          </div>
+          <button className="glass-button solid" onClick={connectDiscord}>Connect Discord</button>
         </section>
       ) : null}
 
       {provider === 'discord' && connected ? (
-        <section className="panel meeting-setup">
-          <div className="panel-head"><div><span className="eyebrow">Discord server</span><h2>Choose where events are created</h2></div></div>
-          <div className="meeting-row">
-            <select className="meeting-input" value={selectedGuild} onChange={(event) => void selectGuild(event.target.value)}>
-              <option value="">Select server…</option>
-              {guilds.map((guild) => <option value={guild.id} key={guild.id}>{guild.name}</option>)}
-            </select>
-          </div>
-        </section>
+        <>
+          <section className="panel meeting-setup">
+            <div className="panel-head">
+              <div><span className="eyebrow">Discord server</span><h2>Choose where events are created</h2></div>
+            </div>
+            <div className="meeting-row">
+              <select className="meeting-input" value={selectedGuild} onChange={(event) => void selectGuild(event.target.value)}>
+                <option value="">Select server…</option>
+                {guilds.map((guild) => <option value={guild.id} key={guild.id}>{guild.name}</option>)}
+              </select>
+            </div>
+          </section>
+
+          <section className="panel meeting-setup">
+            <div className="panel-head">
+              <div><span className="eyebrow">New event</span><h2>Schedule it</h2></div>
+              <span className="presence online"><span />Connected</span>
+            </div>
+            <div className="meeting-form">
+              <label><span>Title</span><input className="meeting-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weekly product sync" /></label>
+              <label><span>Start</span><input className="meeting-input" type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></label>
+              <label><span>Duration</span><input className="meeting-input" type="number" min="1" max="1440" value={duration} onChange={(e) => setDuration(e.target.value)} /></label>
+              <div className="meeting-submit"><button className="glass-button solid" onClick={() => void createDiscordEvent()} disabled={loading}><CalendarDays size={15} />{loading ? 'Creating…' : 'Create event'}</button></div>
+            </div>
+            {notice ? <div className="meeting-notice">{notice}</div> : null}
+          </section>
+        </>
       ) : null}
 
-      {connected ? (
-        <section className="panel meeting-setup">
-          <div className="panel-head"><div><span className="eyebrow">New conference</span><h2>Schedule it</h2></div><span className="presence online"><span />Connected</span></div>
-          <div className="meeting-form">
-            <label><span>Title</span><input className="meeting-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weekly product sync" /></label>
-            <label><span>Start</span><input className="meeting-input" type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></label>
-            <label><span>Duration</span><input className="meeting-input" type="number" min="1" max="1440" value={duration} onChange={(e) => setDuration(e.target.value)} /></label>
-            <div className="meeting-submit"><button className="glass-button solid" onClick={() => void create()} disabled={loading}><Video size={15} />{loading ? 'Creating…' : 'Create conference'}</button></div>
-          </div>
-          {notice ? <div className="meeting-notice">{notice}</div> : null}
-        </section>
-      ) : null}
+      {provider === 'zoom' && notice ? <div className="meeting-notice">{notice}</div> : null}
 
       <section className="panel">
-        <div className="panel-head"><div><span className="eyebrow">Workspace calendar</span><h2>Scheduled meetings</h2></div><button className="glass-button" onClick={() => void load()}><RefreshCcw size={15} />Refresh</button></div>
+        <div className="panel-head">
+          <div><span className="eyebrow">Workspace calendar</span><h2>Scheduled meetings</h2></div>
+          <button className="glass-button" onClick={() => void load()}><RefreshCcw size={15} />Refresh</button>
+        </div>
         <div className="team-table">
-          {!meetings.length ? <EmptyInline title="No meetings yet" description="Create a Zoom meeting or Discord event above and it will appear here." /> : null}
+          {!meetings.length ? <EmptyInline title="No meetings yet" description="Create a Zoom meeting from Conference Rooms or a Discord event above." /> : null}
           {meetings.map((meeting) => (
             <div className="team-row" key={meeting.id}>
               <span className="avatar">{meeting.provider === 'zoom' ? 'Z' : 'D'}</span>
