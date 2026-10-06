@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { ensureSchema, getSql } from '@/lib/db'
 import { getWorkspaceId } from '@/lib/workspace'
-import { getZoomAccessToken } from '@/lib/zoom-server'
+import { createZoomMeeting, ZoomApiError } from '@/lib/zoom-server'
 
 export const runtime = 'nodejs'
 
@@ -13,24 +13,106 @@ type CreateMeetingBody = {
   timezone?: unknown
 }
 
-type ZoomMeetingResponse = {
-  id?: number
-  topic?: string
-  join_url?: string
-  start_url?: string
-  password?: string
-  start_time?: string
-  duration?: number
+const LOCAL_ISO_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/
+const OFFSET_ISO_PATTERN = /(?:Z|[+-]\d{2}:?\d{2})$/i
+
+function errorResponse(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status })
 }
 
-type ZoomErrorResponse = {
-  code?: number
-  message?: string
-  error?: string
+function isValidTimezone(value: string) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value }).format()
+    return true
+  } catch {
+    return false
+  }
 }
 
-function errorResponse(message: string, status: number, details?: Record<string, unknown>) {
-  return NextResponse.json({ error: message, ...details }, { status })
+function getDateTimeParts(date: Date, timezone: string) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    calendar: 'iso8601',
+    numberingSystem: 'latn',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  })
+
+  const parts = Object.fromEntries(
+    formatter.formatToParts(date)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  )
+
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: Number(parts.hour),
+    minute: Number(parts.minute),
+    second: Number(parts.second),
+  }
+}
+
+function getTimezoneOffsetMs(date: Date, timezone: string) {
+  const parts = getDateTimeParts(date, timezone)
+  const localAsUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+  )
+
+  return localAsUtc - date.getTime()
+}
+
+function parseStartTime(value: string, timezone?: string) {
+  if (OFFSET_ISO_PATTERN.test(value)) {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  if (!LOCAL_ISO_PATTERN.test(value)) return null
+
+  const wallClockMs = Date.parse(`${value}Z`)
+  if (Number.isNaN(wallClockMs)) return null
+
+  if (!timezone) {
+    const date = new Date(wallClockMs)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const initialOffset = getTimezoneOffsetMs(new Date(wallClockMs), timezone)
+  const candidateMs = wallClockMs - initialOffset
+  const correctedOffset = getTimezoneOffsetMs(new Date(candidateMs), timezone)
+  const correctedMs = wallClockMs - correctedOffset
+  const candidate = new Date(correctedMs)
+
+  const actual = getDateTimeParts(candidate, timezone)
+  const [datePart, timePart] = value.split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
+  const [hour, minute, secondPart = '0'] = timePart.split(':')
+  const second = Number(secondPart.split('.')[0])
+
+  if (
+    actual.year !== year ||
+    actual.month !== month ||
+    actual.day !== day ||
+    actual.hour !== Number(hour) ||
+    actual.minute !== Number(minute) ||
+    actual.second !== second
+  ) {
+    return null
+  }
+
+  return candidate
 }
 
 export async function POST(request: Request) {
@@ -42,99 +124,56 @@ export async function POST(request: Request) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return errorResponse('Authentication required', 401)
     }
-    throw error
+
+    console.error('Workspace authentication failed', error)
+    return errorResponse('Authentication failed', 500)
+  }
+
+  let body: CreateMeetingBody
+
+  try {
+    body = await request.json() as CreateMeetingBody
+  } catch {
+    return errorResponse('Request body must be valid JSON', 400)
+  }
+
+  const topic = typeof body.topic === 'string' ? body.topic.trim() : ''
+  const startTime = typeof body.startTime === 'string' ? body.startTime.trim() : ''
+  const timezone = typeof body.timezone === 'string' ? body.timezone.trim() : undefined
+  const duration = typeof body.duration === 'number'
+    ? body.duration
+    : typeof body.duration === 'string'
+      ? Number(body.duration)
+      : NaN
+
+  if (!topic) return errorResponse('Topic is required', 400)
+  if (topic.length > 200) return errorResponse('Topic must be 200 characters or fewer', 400)
+  if (!startTime) return errorResponse('Start time is required', 400)
+  if (!Number.isFinite(duration) || !Number.isInteger(duration) || duration < 1 || duration > 1440) {
+    return errorResponse('Duration must be an integer between 1 and 1440 minutes', 400)
+  }
+
+  if (body.timezone !== undefined && (!timezone || !isValidTimezone(timezone))) {
+    return errorResponse('Timezone is invalid', 400)
+  }
+
+  const parsedStartTime = parseStartTime(startTime, timezone)
+
+  if (!parsedStartTime) {
+    return errorResponse('Start time must be a valid ISO date and timezone combination', 400)
+  }
+
+  if (parsedStartTime.getTime() <= Date.now()) {
+    return errorResponse('Start time must be in the future', 400)
   }
 
   try {
-    let body: CreateMeetingBody
-    try {
-      body = await request.json() as CreateMeetingBody
-    } catch {
-      return errorResponse('Invalid JSON body', 400)
-    }
-
-    const topic = typeof body.topic === 'string' ? body.topic.trim() : ''
-    const startTime = typeof body.startTime === 'string' ? body.startTime.trim() : ''
-    const duration = typeof body.duration === 'number'
-      ? body.duration
-      : typeof body.duration === 'string'
-        ? Number(body.duration)
-        : NaN
-    const timezone = typeof body.timezone === 'string' ? body.timezone.trim() : ''
-
-    if (!topic) return errorResponse('topic is required', 400)
-    if (topic.length > 200) return errorResponse('topic must be 200 characters or fewer', 400)
-    if (!startTime) return errorResponse('startTime is required', 400)
-    if (!Number.isFinite(duration) || duration < 1 || duration > 1440) {
-      return errorResponse('duration must be between 1 and 1440 minutes', 400)
-    }
-
-    // Allow both datetime-local values (with an explicit timezone field)
-    // and full ISO-8601 timestamps that already contain an offset.
-    const hasExplicitOffset = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(startTime)
-    if (!hasExplicitOffset && !timezone) {
-      return errorResponse('timezone is required when startTime has no UTC offset', 400)
-    }
-
-    const token = await getZoomAccessToken()
-
-    const zoomPayload: Record<string, unknown> = {
+    const meeting = await createZoomMeeting({
       topic,
-      type: 2,
-      start_time: startTime,
-      duration: Math.round(duration),
-      settings: {
-        waiting_room: true,
-        join_before_host: false,
-      },
-    }
-
-    if (timezone) zoomPayload.timezone = timezone
-
-    const response = await fetch('https://api.zoom.us/v2/users/me/meetings', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + token,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(zoomPayload),
-      cache: 'no-store',
+      startTime,
+      duration,
+      timezone,
     })
-
-    const responseText = await response.text()
-    let meeting: ZoomMeetingResponse | ZoomErrorResponse = {}
-
-    try {
-      meeting = JSON.parse(responseText) as typeof meeting
-    } catch {
-      // Keep the response safe if Zoom returns a non-JSON body.
-    }
-
-    if (!response.ok) {
-      const message =
-        ('message' in meeting && meeting.message) ||
-        ('error' in meeting && meeting.error) ||
-        'Zoom meeting creation failed'
-
-      const status = response.status === 401 || response.status === 403
-        ? 502
-        : response.status >= 400 && response.status < 500
-          ? response.status
-          : 502
-
-      return errorResponse(message, status, {
-        zoomCode: 'code' in meeting ? meeting.code : undefined,
-      })
-    }
-
-    if (
-      !('id' in meeting) ||
-      typeof meeting.id !== 'number' ||
-      !('join_url' in meeting) ||
-      typeof meeting.join_url !== 'string'
-    ) {
-      return errorResponse('Zoom returned an incomplete meeting response', 502)
-    }
 
     const dbMeetingId = randomUUID()
     let persisted = false
@@ -142,12 +181,6 @@ export async function POST(request: Request) {
     try {
       await ensureSchema()
       const sql = getSql()
-
-      const scheduledAt = meeting.start_time
-        ? new Date(meeting.start_time)
-        : hasExplicitOffset
-          ? new Date(startTime)
-          : new Date()
 
       await sql`
         INSERT INTO heaven_meetings
@@ -159,8 +192,8 @@ export async function POST(request: Request) {
             'zoom',
             ${String(meeting.id)},
             ${topic},
-            ${scheduledAt},
-            ${meeting.duration ?? Math.round(duration)},
+            ${parsedStartTime},
+            ${meeting.duration ?? duration},
             ${meeting.join_url},
             ${meeting.start_url ?? null},
             ${JSON.stringify({
@@ -179,19 +212,25 @@ export async function POST(request: Request) {
       join_url: meeting.join_url,
       password: meeting.password ?? null,
       topic: meeting.topic ?? topic,
-      startTime: meeting.start_time ?? startTime,
-      duration: meeting.duration ?? Math.round(duration),
-      timezone: timezone || null,
+      startTime: meeting.start_time ?? parsedStartTime.toISOString(),
+      duration: meeting.duration ?? duration,
+      timezone: timezone ?? meeting.timezone ?? null,
       dbId: persisted ? dbMeetingId : null,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create Zoom meeting'
+    if (error instanceof ZoomApiError) {
+      return errorResponse(error.message, 502)
+    }
 
-    if (message.startsWith('Zoom Server-to-Server OAuth is not configured')) {
-      return errorResponse(message, 503)
+    if (error instanceof Error && (
+      error.message.startsWith('Zoom Server-to-Server OAuth is not configured') ||
+      error.message === 'ZOOM_USER_EMAIL is not configured' ||
+      error.message === 'ZOOM_USER_EMAIL is invalid'
+    )) {
+      return errorResponse(error.message, 503)
     }
 
     console.error('Zoom create-meeting error', error)
-    return errorResponse(message, 500)
+    return errorResponse('Failed to create Zoom meeting', 500)
   }
 }
