@@ -1,93 +1,164 @@
 # HEAVEN
 
-
 Developer command center — a full-stack workspace that brings GitHub repositories, engineering activity, deployments, meetings, integrations, and team collaboration into one focused interface.
 
-Built with Next.js, Clerk Organizations, Neon PostgreSQL, and OAuth integrations (GitHub, Zoom).
+Built with Next.js, Clerk, Neon PostgreSQL, Server-to-Server Zoom OAuth, GitHub OAuth, Discord, and Vercel.
 
 ## Live Demo
- [heaven-b1o.vercel.app](https://heaven-b1o.vercel.app/)
 
+[heaven-b1o.vercel.app](https://heaven-b1o.vercel.app/)
 
 ![Preview](./preview.jpeg)
 
-
 ## Features
+
 - GitHub repository and commit views
 - Workspace and team management via Clerk Organizations
 - GitHub OAuth integration
-- Zoom meeting integration (launches in desktop app)
+- Zoom meeting creation via Server-to-Server OAuth
 - Discord event integration
 - Neon PostgreSQL persistence
 - Encrypted integration tokens
 - Glass / fog inspired interface
-- Authenticated API routes and OAuth callbacks
+- Authenticated API routes
 - Vercel-ready production architecture
 
 ## Tech Stack
-Next.js · React · TypeScript · Neon PostgreSQL · Clerk · GitHub OAuth · Zoom OAuth · Discord · Vercel · Lucide React
+
+Next.js · React · TypeScript · Neon PostgreSQL · Clerk · GitHub OAuth · Zoom Server-to-Server OAuth · Discord · Vercel · Lucide React
 
 ## Architecture
+
 - Next.js App Router with server-side API routes for authenticated operations.
-- Clerk Organizations handle multi-tenant workspaces; each org has its own integrations and data scope.
-- OAuth tokens are encrypted before being stored in Neon PostgreSQL.
-- GitHub and Zoom data is fetched via their APIs using the stored tokens.
-- Static hosting is not sufficient — the app requires authenticated API routes and OAuth callbacks, so it runs as a Next.js server application on Vercel.
+- Clerk Organizations provide the workspace identity and tenant boundary.
+- Database records keep created meetings available to the workspace.
+- Zoom Client Secret and access tokens stay server-side.
+- Zoom access tokens are cached in server memory until shortly before expiry.
+- A failed Zoom API request with HTTP 401 causes exactly one forced token refresh and one retry.
+- Static hosting is not sufficient — HEAVEN runs as a Next.js server application on Vercel.
 
 ## Getting Started
+
 ```bash
 git clone https://github.com/b-1-o/heaven.git
 cd heaven
 npm install
-
+npm run dev
+```
 
 ## Настройка Zoom API
 
-Раздел **Conference Rooms** создаёт настоящие Zoom-встречи через Server-to-Server OAuth. Пользовательский OAuth-редирект для этого сценария не нужен.
+Conference Rooms создаёт настоящие Zoom-встречи через **Server-to-Server OAuth**. Пользовательский Zoom OAuth redirect для этого сценария не нужен.
 
-### 1. Создайте Server-to-Server OAuth приложение в Zoom
+### 1. Создайте Server-to-Server OAuth приложение
 
-1. Войдите в [Zoom App Marketplace](https://marketplace.zoom.us/).
-2. Откройте **Develop** → **Build an App**.
-3. Выберите **Server-to-Server OAuth** и нажмите **Create**.
-4. На странице **App Credentials** скопируйте Account ID, Client ID и Client Secret.
-5. На вкладке **Scopes** добавьте `meeting:write:admin` и `meeting:read:admin`.
+Откройте [Zoom App Marketplace](https://marketplace.zoom.us/) и:
+
+1. Перейдите в **Develop → Build an App**.
+2. Выберите **Server-to-Server OAuth**.
+3. Создайте приложение.
+4. На странице **App Credentials** сохраните:
+   - **Account ID**
+   - **Client ID**
+   - **Client Secret**
+5. В **Scopes** добавьте:
+   - `meeting:write:admin`
+   - `meeting:read:admin`
+   - `meeting:delete:admin`
+   - `user:read:admin`
 6. Активируйте приложение.
 
-Zoom документирует Server-to-Server OAuth как flow без пользовательского взаимодействия: сервер получает access token через `account_credentials`, а затем использует его для API-запросов. Такой access token действует около часа и при необходимости запрашивается заново. Для создания встреч используется meeting write scope, включая `meeting:write:admin`.
+Zoom документирует Server-to-Server OAuth как двухшаговый серверный flow: приложение получает access token через `account_credentials`, после чего использует этот токен для API-запросов. У S2S access token нет refresh token; новый токен получают повторным запросом к `/oauth/token`. Срок жизни токена — один час. 
 
-### 2. Добавьте переменные в Vercel
+Для создания встречи HEAVEN использует Zoom Meetings API `POST /v2/users/{userId}/meetings`, где `{userId}` задаётся значением `ZOOM_USER_EMAIL`. Zoom также указывает `meeting:write:admin` как scope для создания встреч.
 
-Откройте **Vercel → Project → Settings → Environment Variables** и добавьте:
+### 2. Переменные окружения
+
+Добавьте в локальный `.env.local`:
+
+```env
+ZOOM_ACCOUNT_ID=your-zoom-account-id
+ZOOM_CLIENT_ID=your-zoom-client-id
+ZOOM_CLIENT_SECRET=your-zoom-client-secret
+ZOOM_USER_EMAIL=owner@example.com
+```
+
+`ZOOM_USER_EMAIL` — **email владельца Zoom-аккаунта/пользователя, на котором должны создаваться встречи**.
+
+Не используйте `NEXT_PUBLIC_` для Zoom credentials и никогда не коммитьте реальные секреты в Git.
+
+### 3. Добавьте переменные в Vercel
+
+Откройте:
+
+**Vercel → Project → Settings → Environment Variables**
+
+Добавьте:
 
 | Variable | Value | Vercel type |
 | --- | --- | --- |
-| `ZOOM_ACCOUNT_ID` | Account ID из Zoom | Config |
-| `ZOOM_CLIENT_ID` | Client ID из Zoom | Config |
-| `ZOOM_CLIENT_SECRET` | Client Secret из Zoom | Secret |
+| `ZOOM_ACCOUNT_ID` | Account ID из Zoom Marketplace | Config |
+| `ZOOM_CLIENT_ID` | Client ID из Zoom Marketplace | Config |
+| `ZOOM_CLIENT_SECRET` | Client Secret из Zoom Marketplace | **Secret** |
+| `ZOOM_USER_EMAIL` | Email владельца Zoom-аккаунта | Config |
 
-Выберите нужные окружения, обычно **Production**, **Preview** и **Development**. После изменения переменных создайте новый deployment, чтобы значения попали в новый runtime. В актуальном Vercel для env vars доступны типы **Config** и **Secret**; Client Secret следует хранить как Secret.
+Выберите нужные окружения: **Production**, **Preview** и/или **Development**.
 
-### 3. Локально
+После изменения переменных окружения нужен **новый deployment / redeploy**, чтобы новый runtime получил значения.
 
-Скопируйте значения в `.env.local`:
+### 4. Как работает создание
 
-```env
-ZOOM_ACCOUNT_ID=your-account-id
-ZOOM_CLIENT_ID=your-client-id
-ZOOM_CLIENT_SECRET=your-client-secret
-```
+Браузер отправляет только:
 
-Не используйте `NEXT_PUBLIC_` для Zoom credentials и не коммитьте реальные секреты.
+`POST /api/zoom/create-meeting`
 
-### 4. Архитектура создания встречи
+с:
 
-Браузер вызывает только `POST /api/zoom/create-meeting`.
+- `topic`
+- `startTime`
+- `duration`
+- `timezone`
 
-Клиент отправляет `topic`, `startTime`, `duration` и, при необходимости, `timezone`. Next.js server route проверяет авторизацию Clerk, получает/кеширует S2S access token и сервером вызывает `POST https://api.zoom.us/v2/users/me/meetings`.
+Сервер:
 
-Клиенту возвращаются только публичные данные встречи: `id`, `join_url`, `password` и данные расписания. Zoom Client Secret и access token никогда не попадают в браузер.
+1. Проверяет Clerk authentication.
+2. Валидирует тему, дату, duration и timezone.
+3. Получает S2S access token.
+4. Вызывает Zoom с серверным Bearer token.
+5. Если Zoom отвечает **401**, очищает кеш, получает новый access token и повторяет исходный запрос **ровно один раз**.
+6. Если второй запрос тоже возвращает 401, клиент получает понятную ошибку `Zoom API error: 401 ...`.
+7. При любом другом non-2xx ответе Zoom ошибка логируется только на сервере, а клиент получает статус **502** и сообщение формата `Zoom API error: {status} {message}`.
 
-### OAuth с пользовательским редиректом
+Client Secret и access token никогда не отправляются клиентскому JavaScript.
 
-В проекте всё ещё есть старый user-OAuth поток `/api/integrations/zoom/*`. Он не используется для создания встреч в **Conference Rooms**. Если позже понадобится подключать разные Zoom-аккаунты отдельных пользователей, для этого лучше использовать отдельное General OAuth-приложение и отдельные credentials, не смешивая их с S2S credentials. Для текущего сценария основной способ — Server-to-Server OAuth.
+### 5. Conference Rooms
+
+В разделе **Conference Rooms** доступны:
+
+- Topic
+- Start time
+- Duration
+- Timezone
+- Create Zoom meeting
+- Join URL
+- Password
+- Open in browser
+- Copy link
+
+Часовой пояс по умолчанию определяется через `Intl.DateTimeFormat().resolvedOptions().timeZone`, если он входит в поддерживаемый список. В противном случае используется UTC.
+
+### 6. Server-side deletion
+
+Созданные через S2S-встречи записываются в `heaven_meetings` с метаданными `authMode: "s2s"`.
+
+Удаление использует тот же серверный S2S OAuth client и также выполняется только на сервере.
+
+### 7. Старый user OAuth
+
+Старые Zoom user-OAuth routes удалены. HEAVEN больше не использует:
+
+- `/api/integrations/zoom/*`
+- старый Zoom meeting OAuth endpoint
+- Zoom Meeting SDK endpoint, зависевший от user OAuth
+
+Для Zoom сейчас используется единый Server-to-Server OAuth flow.
