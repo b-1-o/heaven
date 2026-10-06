@@ -689,6 +689,66 @@ function AnalyticsView() {
   )
 }
 
+function IntegrationsView() {
+  const [items, setItems] = useState<Array<{ provider: string; account_name: string | null }>>([])
+
+  useEffect(() => {
+    fetch('/api/integrations', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => setItems(data.integrations ?? []))
+      .catch(() => setItems([]))
+  }, [])
+
+  const connected = (provider: string) =>
+    provider === 'zoom' || items.some((item) => item.provider === provider)
+
+  const rows = [
+    ['GitHub', Github, 'Repositories, commits and source activity', 'github'],
+    ['Zoom', Video, 'Create and manage team meetings', 'zoom'],
+    ['Discord', Users, 'Connect a server and schedule events', 'discord'],
+    ['Postgres', Database, 'Persistent HEAVEN workspace data', 'database'],
+  ] as const
+
+  return (
+    <div className="page-body">
+      <div className="section-toolbar">
+        <div>
+          <span className="eyebrow">Connected systems</span>
+          <h1>Integrations</h1>
+          <p>HEAVEN keeps credentials server-side and turns connected services into one operating surface.</p>
+        </div>
+      </div>
+
+      <div className="integration-grid">
+        {rows.map(([name, Icon, description, key]) => {
+          const IntegrationIcon = Icon as typeof Github
+          const isConnected = connected(key)
+
+          return (
+            <div className="integration-card glass-card" key={name}>
+              <div className="integration-icon"><IntegrationIcon size={19} /></div>
+              <div className="integration-copy">
+                <strong>{name}</strong>
+                <p>{description}</p>
+              </div>
+              <span className={isConnected ? 'connected' : 'available'}>
+                {isConnected ? 'Connected' : key === 'database' ? 'Environment' : 'Not connected'}
+              </span>
+              {key === 'github'
+                ? <GlassButton icon={Github} onClick={() => { window.location.href = '/api/integrations/github/start' }}>Connect</GlassButton>
+                : key === 'zoom'
+                  ? <GlassButton icon={Video} onClick={() => { window.location.href = '/rooms' }}>Open rooms</GlassButton>
+                  : key === 'discord'
+                    ? <GlassButton icon={Users} onClick={() => { window.location.href = '/api/integrations/discord/start' }}>Connect</GlassButton>
+                    : <GlassButton icon={Settings2}>View</GlassButton>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function SettingsView({ dark, setDark }: { dark: boolean; setDark: (value: boolean) => void }) {
   return (
     <div className="page-body">
