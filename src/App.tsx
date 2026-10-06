@@ -883,7 +883,7 @@ function IntegrationsView() {
     fetch('/api/integrations', { cache: 'no-store' }).then((response) => response.json()).then((data) => setItems(data.integrations ?? []))
   }, [])
 
-  const connected = (provider: string) => items.some((item) => item.provider === provider)
+  const connected = (provider: string) => provider === 'zoom' || items.some((item) => item.provider === provider)
   const rows = [
     ['GitHub', Github, 'Repositories, commits and source activity', 'github'],
     ['Zoom', Video, 'Create and manage team meetings', 'zoom'],
@@ -903,7 +903,7 @@ function IntegrationsView() {
               <div className="integration-icon"><IntegrationIcon size={19} /></div>
               <div className="integration-copy"><strong>{name}</strong><p>{description}</p></div>
               <span className={isConnected ? 'connected' : 'available'}>{isConnected ? 'Connected' : key === 'database' ? 'Environment' : 'Not connected'}</span>
-              {key === 'github' ? <GlassButton icon={Github} onClick={() => { window.location.href = '/api/integrations/github/start' }}>Connect</GlassButton> : key === 'zoom' ? <GlassButton icon={Video} onClick={() => { window.location.href = '/api/integrations/zoom/start' }}>Connect</GlassButton> : key === 'discord' ? <GlassButton icon={Users} onClick={() => { window.location.href = '/api/integrations/discord/start' }}>Connect</GlassButton> : <GlassButton icon={Settings2}>View</GlassButton>}
+              {key === 'github' ? <GlassButton icon={Github} onClick={() => { window.location.href = '/api/integrations/github/start' }}>Connect</GlassButton> : key === 'zoom' ? <GlassButton icon={Video} onClick={() => { window.location.href = '/rooms' }}>Open rooms</GlassButton> : key === 'discord' ? <GlassButton icon={Users} onClick={() => { window.location.href = '/api/integrations/discord/start' }}>Connect</GlassButton> : <GlassButton icon={Settings2}>View</GlassButton>}
             </div>
           )
         })}
