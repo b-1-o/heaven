@@ -1,19 +1,16 @@
 # HEAVEN
 
-![Preview](./preview.jpeg)
 
 Developer command center — a full-stack workspace that brings GitHub repositories, engineering activity, deployments, meetings, integrations, and team collaboration into one focused interface.
 
 Built with Next.js, Clerk Organizations, Neon PostgreSQL, and OAuth integrations (GitHub, Zoom).
 
 ## Live Demo
-🔗 [heaven-b1o.vercel.app](https://heaven-b1o.vercel.app/)
+ [heaven-b1o.vercel.app](https://heaven-b1o.vercel.app/)
 
-## Preview
+
 ![Preview](./preview.jpeg)
 
-![Demo](./assets/demo.gif)
-*(GIF will be added)*
 
 ## Features
 - GitHub repository and commit views
