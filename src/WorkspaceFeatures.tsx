@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Clock3,
   Copy,
-  Globe2,
   Filter,
   MapPin,
   Mic,
