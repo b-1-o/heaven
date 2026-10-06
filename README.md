@@ -54,7 +54,7 @@ npm install
 5. На вкладке **Scopes** добавьте `meeting:write:admin` и `meeting:read:admin`.
 6. Активируйте приложение.
 
-Zoom документирует Server-to-Server OAuth как flow без пользовательского взаимодействия: сервер получает access token через `account_credentials`, а затем использует его для API-запросов. Такой access token действует около часа и при необходимости запрашивается заново. Для создания встреч используется meeting write scope, включая `meeting:write:admin`. citeturn714248search0turn714248search7turn714248search1turn714248search9
+Zoom документирует Server-to-Server OAuth как flow без пользовательского взаимодействия: сервер получает access token через `account_credentials`, а затем использует его для API-запросов. Такой access token действует около часа и при необходимости запрашивается заново. Для создания встреч используется meeting write scope, включая `meeting:write:admin`.
 
 ### 2. Добавьте переменные в Vercel
 
@@ -66,7 +66,7 @@ Zoom документирует Server-to-Server OAuth как flow без пол
 | `ZOOM_CLIENT_ID` | Client ID из Zoom | Config |
 | `ZOOM_CLIENT_SECRET` | Client Secret из Zoom | Secret |
 
-Выберите нужные окружения, обычно **Production**, **Preview** и **Development**. После изменения переменных создайте новый deployment, чтобы значения попали в новый runtime. В актуальном Vercel для env vars доступны типы **Config** и **Secret**; Client Secret следует хранить как Secret. citeturn709024search0turn709024search5
+Выберите нужные окружения, обычно **Production**, **Preview** и **Development**. После изменения переменных создайте новый deployment, чтобы значения попали в новый runtime. В актуальном Vercel для env vars доступны типы **Config** и **Secret**; Client Secret следует хранить как Secret.
 
 ### 3. Локально
 
@@ -90,4 +90,4 @@ ZOOM_CLIENT_SECRET=your-client-secret
 
 ### OAuth с пользовательским редиректом
 
-В проекте всё ещё есть старый user-OAuth поток `/api/integrations/zoom/*`. Он не используется для создания встреч в **Conference Rooms**. Если позже понадобится подключать разные Zoom-аккаунты отдельных пользователей, для этого лучше использовать отдельное General OAuth-приложение и отдельные credentials, не смешивая их с S2S credentials. Для текущего сценария основной способ — Server-to-Server OAuth. citeturn714248search2turn714248search10
+В проекте всё ещё есть старый user-OAuth поток `/api/integrations/zoom/*`. Он не используется для создания встреч в **Conference Rooms**. Если позже понадобится подключать разные Zoom-аккаунты отдельных пользователей, для этого лучше использовать отдельное General OAuth-приложение и отдельные credentials, не смешивая их с S2S credentials. Для текущего сценария основной способ — Server-to-Server OAuth.
