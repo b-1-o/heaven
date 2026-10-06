@@ -152,13 +152,3 @@ Client Secret и access token никогда не отправляются кл�
 Созданные через S2S-встречи записываются в `heaven_meetings` с метаданными `authMode: "s2s"`.
 
 Удаление использует тот же серверный S2S OAuth client и также выполняется только на сервере.
-
-### 7. Старый user OAuth
-
-Старые Zoom user-OAuth routes удалены. HEAVEN больше не использует:
-
-- `/api/integrations/zoom/*`
-- старый Zoom meeting OAuth endpoint
-- Zoom Meeting SDK endpoint, зависевший от user OAuth
-
-Для Zoom сейчас используется единый Server-to-Server OAuth flow.
