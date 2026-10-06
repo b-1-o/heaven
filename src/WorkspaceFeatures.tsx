@@ -290,6 +290,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
             title: string
             scheduled_at: string
             duration_minutes: number
+            join_url?: string | null
             metadata?: { password?: string | null }
           }) => ({
             id: 'zoom-' + meeting.id,
@@ -529,7 +530,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
                 onChange={(event) => setStartTime(event.target.value)}
               />
             </label>
-                <label>
+            <label>
               <span>Duration (min)</span>
               <input
                 className="meeting-input"
