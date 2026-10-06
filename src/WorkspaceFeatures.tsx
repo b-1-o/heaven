@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Clock3,
   Copy,
+  Globe2,
   Filter,
   MapPin,
   Mic,
@@ -70,6 +71,16 @@ const people: Person[] = [
   { id: 'sophia', name: 'Sophia Morgan', initials: 'SM', role: 'Engineering Manager', team: 'Core Platform', location: 'New York, US', status: 'away', timezone: 'EDT · UTC−4', projects: ['Nebula Core'], skills: ['Architecture', 'Planning', 'People'], email: 'sophia@heaven.dev', availability: 'In focus mode' },
   { id: 'noah', name: 'Noah Williams', initials: 'NW', role: 'Backend Engineer', team: 'Infrastructure', location: 'Denver, US', status: 'offline', timezone: 'MDT · UTC−6', projects: ['Signal API'], skills: ['Go', 'Redis', 'APIs'], email: 'noah@heaven.dev', availability: 'Offline' },
   { id: 'lena', name: 'Lena Petrova', initials: 'LP', role: 'Product Manager', team: 'Product', location: 'Berlin, Germany', status: 'online', timezone: 'CEST · UTC+2', projects: ['Atlas Mobile', 'Nebula Core'], skills: ['Roadmaps', 'Research', 'Delivery'], email: 'lena@heaven.dev', availability: 'Available now' },
+]
+
+const TIMEZONE_OPTIONS = [
+  { value: 'UTC', label: 'UTC' },
+  { value: 'Europe/Moscow', label: 'Europe / Moscow' },
+  { value: 'Europe/London', label: 'Europe / London' },
+  { value: 'America/New_York', label: 'America / New York' },
+  { value: 'America/Los_Angeles', label: 'America / Los Angeles' },
+  { value: 'Asia/Tokyo', label: 'Asia / Tokyo' },
+  { value: 'Asia/Dubai', label: 'Asia / Dubai' },
 ]
 
 const initialRooms: Room[] = [
@@ -243,11 +254,19 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
     return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16)
   })
   const [duration, setDuration] = useState('60')
+  const [timezone, setTimezone] = useState('UTC')
   const [createdMeeting, setCreatedMeeting] = useState<{ id: string; join_url: string; password: string | null; topic: string } | null>(null)
   const [creatingMeeting, setCreatingMeeting] = useState(false)
   const [zoomError, setZoomError] = useState('')
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null)
 
+
+  useEffect(() => {
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (TIMEZONE_OPTIONS.some((item) => item.value === detected)) {
+      setTimezone(detected)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -369,7 +388,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
           topic: meetingTopic,
           startTime,
           duration: Math.round(meetingDuration),
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timezone,
         }),
       })
 
@@ -511,7 +530,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
                 onChange={(event) => setStartTime(event.target.value)}
               />
             </label>
-            <label>
+                <label>
               <span>Duration (min)</span>
               <input
                 className="meeting-input"
@@ -521,6 +540,18 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
                 value={duration}
                 onChange={(event) => setDuration(event.target.value)}
               />
+            </label>
+            <label>
+              <span>Timezone</span>
+              <select
+                className="meeting-input"
+                value={timezone}
+                onChange={(event) => setTimezone(event.target.value)}
+              >
+                {TIMEZONE_OPTIONS.map((item) => (
+                  <option value={item.value} key={item.value}>{item.label}</option>
+                ))}
+              </select>
             </label>
             <div className="meeting-submit">
               <button className="glass-button solid" type="submit" disabled={creatingMeeting}>
