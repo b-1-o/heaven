@@ -58,6 +58,7 @@ type Room = {
   accent: string
   zoomMeetingNumber?: string
   zoomPassword?: string
+  zoomJoinUrl?: string
 }
 
 const people: Person[] = [
@@ -194,15 +195,34 @@ export function PeopleDirectoryView({ onView, onNotify }: { onView: (view: 'proj
   )
 }
 
-function openZoomMeeting(meetingNumber: string, password = '') {
-  const cleanMeetingNumber = meetingNumber.replace(/\s/g, '')
-  const params = new URLSearchParams({
-    action: 'join',
-    confno: cleanMeetingNumber,
-  })
-  if (password) params.set('pwd', password)
+async function copyText(value: string, onNotify?: (message: string) => void) {
+  try {
+    await navigator.clipboard.writeText(value)
+    onNotify?.('Zoom link copied')
+    return true
+  } catch {
+    window.prompt('Copy this Zoom link:', value)
+    return false
+  }
+}
 
-  window.location.href = `zoommtg://zoom.us/join?${params.toString()}`
+function openZoomUrl(joinUrl: string, onNotify?: (message: string) => void) {
+  const opened = window.open(joinUrl, '_blank')
+
+  if (opened) return true
+
+  const shouldCopy = window.confirm('Zoom could not be opened automatically. Copy the meeting link instead?')
+  if (shouldCopy) void copyText(joinUrl, onNotify)
+  return false
+}
+
+function openZoomMeeting(meetingNumber: string, password = '', onNotify?: (message: string) => void) {
+  const cleanMeetingNumber = meetingNumber.replace(/\s/g, '')
+  const params = password ? `?${new URLSearchParams({ pwd: password }).toString()}` : ''
+  const joinUrl = `https://zoom.us/j/${encodeURIComponent(cleanMeetingNumber)}${params}`
+
+  openZoomUrl(joinUrl, onNotify)
+  return joinUrl
 }
 
 export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meetings') => void; onNotify: (message: string) => void }) {
@@ -215,7 +235,16 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
   const [cameraOff, setCameraOff] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
-  const [newRoomName, setNewRoomName] = useState('')
+  const [topic, setTopic] = useState('')
+  const [startTime, setStartTime] = useState(() => {
+    const date = new Date(Date.now() + 5 * 60_000)
+    date.setSeconds(0, 0)
+    const offset = date.getTimezoneOffset()
+    return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16)
+  })
+  const [duration, setDuration] = useState('60')
+  const [createdMeeting, setCreatedMeeting] = useState<{ id: string; join_url: string; password: string | null; topic: string } | null>(null)
+  const [creatingMeeting, setCreatingMeeting] = useState(false)
   const [zoomError, setZoomError] = useState('')
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null)
 
@@ -257,6 +286,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
             accent: 'Zoom',
             zoomMeetingNumber: String(meeting.external_id),
             zoomPassword: meeting.metadata?.password ?? '',
+            zoomJoinUrl: meeting.join_url ?? undefined,
           }))
 
         if (liveZoomRooms.length) {
@@ -293,7 +323,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
 
     if (activeRoom.zoomMeetingNumber) {
       onNotify('Opening ' + activeRoom.name + ' in Zoom')
-      openZoomMeeting(activeRoom.zoomMeetingNumber, activeRoom.zoomPassword)
+      openZoomMeeting(activeRoom.zoomMeetingNumber, activeRoom.zoomPassword, onNotify)
       return
     }
 
@@ -303,55 +333,95 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
     onNotify('Preview room opened')
   }
 
-  const createRoom = async () => {
-    const name = newRoomName.trim()
-    if (!name) return
+  const createZoomMeeting = async () => {
+    const meetingTopic = topic.trim()
+    const meetingDuration = Number(duration)
 
+    if (!meetingTopic) {
+      const message = 'Enter a meeting name'
+      setZoomError(message)
+      onNotify(message)
+      return
+    }
+
+    if (!startTime) {
+      const message = 'Choose a meeting date and time'
+      setZoomError(message)
+      onNotify(message)
+      return
+    }
+
+    if (!Number.isFinite(meetingDuration) || meetingDuration < 1 || meetingDuration > 1440) {
+      const message = 'Duration must be between 1 and 1440 minutes'
+      setZoomError(message)
+      onNotify(message)
+      return
+    }
+
+    setCreatingMeeting(true)
     setZoomError('')
+
     try {
-      const response = await fetch('/api/meetings/zoom', {
+      const response = await fetch('/api/zoom/create-meeting', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: name,
-          startTime: new Date(Date.now() + 60_000).toISOString(),
-          durationMinutes: 60,
+          topic: meetingTopic,
+          startTime,
+          duration: Math.round(meetingDuration),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       })
-      const data = await response.json()
+
+      const data = await response.json().catch(() => ({}))
+
       if (!response.ok) {
-        if (response.status === 409) {
-          onNotify('Connect Zoom in Meeting center first')
-          onView('meetings')
-          return
-        }
-        throw new Error(data.error ?? 'Could not create Zoom room')
+        throw new Error(data.error ?? 'Could not create Zoom meeting')
       }
 
+      const meetingNumber = String(data.id)
+      const joinUrl = typeof data.join_url === 'string'
+        ? data.join_url
+        : `https://zoom.us/j/${encodeURIComponent(meetingNumber)}${data.password ? '?' + new URLSearchParams({ pwd: String(data.password) }).toString() : ''}`
+      const password = typeof data.password === 'string' ? data.password : null
+      const scheduledAt = new Date(data.startTime ?? startTime)
+      const isLive = Number.isFinite(scheduledAt.getTime()) && scheduledAt.getTime() <= Date.now()
+      const dbId = typeof data.dbId === 'string' && data.dbId ? data.dbId : null
+
       const room: Room = {
-        id: 'zoom-' + data.dbId,
-        name: data.title,
+        id: dbId ? 'zoom-' + dbId : 'local-zoom-' + meetingNumber,
+        name: meetingTopic,
         project: 'Zoom workspace',
-        status: 'Live',
-        start: 'Now',
-        duration: (data.durationMinutes ?? 60) + ' min',
+        status: isLive ? 'Live' : 'Scheduled',
+        start: isLive
+          ? 'Now'
+          : scheduledAt.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+        duration: Math.round(meetingDuration) + ' min',
         host: 'Zoom',
         participantCount: 0,
         participants: [],
         accent: 'Zoom',
-        zoomMeetingNumber: String(data.id),
-        zoomPassword: data.password ?? '',
+        zoomMeetingNumber: meetingNumber,
+        zoomPassword: password ?? '',
+        zoomJoinUrl: joinUrl,
       }
-      setRooms((items) => [room, ...items.filter((item) => item.zoomMeetingNumber !== room.zoomMeetingNumber)])
+
+      setRooms((items) => [room, ...items.filter((item) => item.zoomMeetingNumber !== meetingNumber)])
       setSelectedRoomId(room.id)
-      setJoined(true)
-      setComposerOpen(false)
-      setNewRoomName('')
-      onNotify('Created ' + name)
+      setJoined(false)
+      setCreatedMeeting({
+        id: meetingNumber,
+        join_url: joinUrl,
+        password,
+        topic: meetingTopic,
+      })
+      onNotify('Zoom meeting created')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not create Zoom room'
+      const message = error instanceof Error ? error.message : 'Could not create Zoom meeting'
       setZoomError(message)
       onNotify(message)
+    } finally {
+      setCreatingMeeting(false)
     }
   }
 
@@ -404,17 +474,87 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
         </div>
         <div className="section-actions">
           <button className="glass-button" onClick={() => onView('meetings')}><CalendarDays size={14} /> Meeting center</button>
-          <button className="glass-button solid" onClick={() => setComposerOpen((open) => !open)}><Video size={14} /> New room</button>
+          <button className="glass-button solid" onClick={() => setComposerOpen((open) => !open)}><Video size={14} /> Create meeting</button>
         </div>
       </div>
 
       {composerOpen ? (
         <section className="panel room-composer">
-          <div><span className="eyebrow">New room</span><h2>Open a workspace conference</h2></div>
-          <div className="room-composer-row">
-            <input className="meeting-input" autoFocus value={newRoomName} onChange={(event) => setNewRoomName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') createRoom() }} placeholder="e.g. Launch room" />
-            <button className="glass-button solid" onClick={createRoom}><Check size={14} /> Start room</button>
+          <div>
+            <span className="eyebrow">Zoom conference</span>
+            <h2>Create a real Zoom meeting</h2>
           </div>
+
+          <form
+            className="meeting-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void createZoomMeeting()
+            }}
+          >
+            <label>
+              <span>Topic</span>
+              <input
+                className="meeting-input"
+                autoFocus
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+                placeholder="e.g. Product launch"
+              />
+            </label>
+            <label>
+              <span>Start time</span>
+              <input
+                className="meeting-input"
+                type="datetime-local"
+                value={startTime}
+                onChange={(event) => setStartTime(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>Duration (min)</span>
+              <input
+                className="meeting-input"
+                type="number"
+                min="1"
+                max="1440"
+                value={duration}
+                onChange={(event) => setDuration(event.target.value)}
+              />
+            </label>
+            <div className="meeting-submit">
+              <button className="glass-button solid" type="submit" disabled={creatingMeeting}>
+                <Video size={14} />
+                {creatingMeeting ? 'Creating…' : 'Create Zoom meeting'}
+              </button>
+            </div>
+          </form>
+
+          {zoomError ? <div className="meeting-notice">{zoomError}</div> : null}
+
+          {createdMeeting ? (
+            <div className="zoom-meeting-result glass-card">
+              <div>
+                <span className="eyebrow">Meeting created</span>
+                <strong className="zoom-meeting-topic">{createdMeeting.topic}</strong>
+              </div>
+              <div className="zoom-meeting-link-wrap">
+                <span>Join link</span>
+                <a href={createdMeeting.join_url} target="_blank" rel="noreferrer" className="zoom-meeting-link">
+                  {createdMeeting.join_url}
+                </a>
+                <span>Password: <strong>{createdMeeting.password || 'None'}</strong></span>
+              </div>
+              <div className="zoom-meeting-actions">
+                <button className="glass-button solid" type="button" onClick={() => openZoomUrl(createdMeeting.join_url, onNotify)}>
+                  <ExternalLink size={14} /> Open in browser
+                </button>
+                <button className="glass-button" type="button" onClick={() => void copyText(createdMeeting.join_url, onNotify)}>
+                  <Copy size={14} /> Copy link
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -440,8 +580,8 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
               <div className="video-empty">
                 <Video size={22} />
                 <strong>Zoom is opening</strong>
-                <span>The conference will continue in the Zoom desktop app.</span>
-                <button className="glass-button solid" onClick={() => openZoomMeeting(activeRoom.zoomMeetingNumber!, activeRoom.zoomPassword)}>
+                <span>The conference will continue in Zoom in your browser or app.</span>
+                <button className="glass-button solid" onClick={() => openZoomMeeting(activeRoom.zoomMeetingNumber!, activeRoom.zoomPassword, onNotify)}>
                   <ExternalLink size={14} /> Reopen Zoom
                 </button>
               </div>
@@ -460,7 +600,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
           )}
           {joined && activeRoom.zoomMeetingNumber ? (
             <div className="room-controls zoom-room-controls">
-              <span className="zoom-control-note"><ExternalLink size={14} /> Zoom desktop app</span>
+              <span className="zoom-control-note"><ExternalLink size={14} /> Zoom web / desktop</span>
               <button className="room-control danger" onClick={() => { setJoined(false); onNotify('Room closed') }}><Phone size={16} /><span>Close</span></button>
             </div>
           ) : (
@@ -485,7 +625,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
                   <strong>{room.name}</strong><span>{room.project} · {room.start}</span>
                   <div className="room-participants">{room.participants.slice(0, 5).map((initials) => <span key={initials}>{initials}</span>)}{room.participantCount > 5 ? <span>+{room.participantCount - 5}</span> : null}</div>
                 </button>
-                {room.zoomMeetingNumber ? (
+                {room.zoomMeetingNumber && room.id.startsWith('zoom-') ? (
                   <button
                     className="room-delete"
                     onClick={() => void deleteRoom(room)}
