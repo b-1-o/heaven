@@ -170,7 +170,7 @@ export async function POST(request: Request) {
   try {
     const meeting = await createZoomMeeting({
       topic,
-      startTime,
+      startTime: parsedStartTime.toISOString(),
       duration,
       timezone,
     })
