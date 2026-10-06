@@ -2,9 +2,7 @@ import { Buffer } from 'node:buffer'
 
 type ZoomTokenResponse = {
   access_token?: string
-  token_type?: string
   expires_in?: number
-  scope?: string
 }
 
 type CachedToken = {
@@ -12,8 +10,23 @@ type CachedToken = {
   expiresAt: number
 }
 
+export class ZoomApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly apiMessage: string,
+    public readonly responseBody: string,
+  ) {
+    super(`Zoom API error: ${status} ${apiMessage}`)
+    this.name = 'ZoomApiError'
+  }
+}
+
 let cachedToken: CachedToken | null = null
 let tokenRequest: Promise<string> | null = null
+
+export function clearZoomAccessTokenCache() {
+  cachedToken = null
+}
 
 export async function getZoomAccessToken(): Promise<string> {
   const accountId = process.env.ZOOM_ACCOUNT_ID
@@ -34,7 +47,7 @@ export async function getZoomAccessToken(): Promise<string> {
   if (tokenRequest) return tokenRequest
 
   tokenRequest = (async () => {
-    const basic = Buffer.from(clientId + ':' + clientSecret).toString('base64')
+    const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
     const tokenUrl = new URL('https://zoom.us/oauth/token')
     tokenUrl.searchParams.set('grant_type', 'account_credentials')
     tokenUrl.searchParams.set('account_id', accountId)
@@ -42,31 +55,30 @@ export async function getZoomAccessToken(): Promise<string> {
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: {
-        Authorization: 'Basic ' + basic,
+        Authorization: `Basic ${basic}`,
       },
       cache: 'no-store',
     })
 
-    const text = await response.text()
-    let payload: ZoomTokenResponse | { reason?: string; error?: string; error_description?: string } = {}
-
-    try {
-      payload = JSON.parse(text) as typeof payload
-    } catch {
-      // Zoom should return JSON, but keep the error safe if it does not.
-    }
+    const body = await response.text()
 
     if (!response.ok) {
-      const reason =
-        ('error_description' in payload && payload.error_description) ||
-        ('reason' in payload && payload.reason) ||
-        ('error' in payload && payload.error) ||
-        'Zoom token request failed'
-      throw new Error(reason)
+      console.error('Zoom OAuth token request failed', {
+        status: response.status,
+        body,
+      })
+      throw new Error('Zoom OAuth token request failed')
     }
 
-    if (!('access_token' in payload) || !payload.access_token) {
-      throw new Error('Zoom token response did not include an access token')
+    let payload: ZoomTokenResponse = {}
+    try {
+      payload = JSON.parse(body) as ZoomTokenResponse
+    } catch {
+      throw new Error('Zoom OAuth token response was invalid')
+    }
+
+    if (!payload.access_token) {
+      throw new Error('Zoom OAuth token response did not include an access token')
     }
 
     const expiresIn = typeof payload.expires_in === 'number' && payload.expires_in > 0
@@ -86,4 +98,135 @@ export async function getZoomAccessToken(): Promise<string> {
   } finally {
     tokenRequest = null
   }
+}
+
+function getZoomErrorMessage(status: number, body: string) {
+  try {
+    const parsed = JSON.parse(body) as {
+      message?: unknown
+      reason?: unknown
+      error?: unknown
+    }
+
+    for (const value of [parsed.message, parsed.reason, parsed.error]) {
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim().slice(0, 500)
+      }
+    }
+  } catch {
+    // Fall back to the raw response body below.
+  }
+
+  return body.trim().replace(/\s+/g, ' ').slice(0, 500) || 'Unknown Zoom API error'
+}
+
+async function requestZoom(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const userEmail = process.env.ZOOM_USER_EMAIL?.trim()
+
+  if (!userEmail) {
+    throw new Error('ZOOM_USER_EMAIL is not configured')
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
+    throw new Error('ZOOM_USER_EMAIL is invalid')
+  }
+
+  const url = `https://api.zoom.us/v2${path}`
+  let token = await getZoomAccessToken()
+
+  const send = async () =>
+    fetch(url, {
+      ...init,
+      headers: {
+        ...(init.headers ?? {}),
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    })
+
+  let response = await send()
+
+  if (response.status === 401) {
+    clearZoomAccessTokenCache()
+
+    try {
+      token = await getZoomAccessToken()
+    } catch {
+      throw new ZoomApiError(401, 'Unauthorized', '')
+    }
+
+    response = await send()
+  }
+
+  if (!response.ok) {
+    const responseBody = await response.text()
+    const message = getZoomErrorMessage(response.status, responseBody)
+
+    console.error('Zoom API request failed', {
+      status: response.status,
+      path,
+      body: responseBody,
+    })
+
+    throw new ZoomApiError(response.status, message, responseBody)
+  }
+
+  return response
+}
+
+export type CreateZoomMeetingInput = {
+  topic: string
+  startTime: string
+  duration: number
+  timezone?: string
+}
+
+export type CreatedZoomMeeting = {
+  id: number
+  topic?: string
+  join_url?: string
+  start_url?: string
+  password?: string
+  start_time?: string
+  duration?: number
+  timezone?: string
+}
+
+export async function createZoomMeeting(input: CreateZoomMeetingInput): Promise<CreatedZoomMeeting> {
+  const userEmail = process.env.ZOOM_USER_EMAIL!.trim()
+
+  const response = await requestZoom(`/users/${encodeURIComponent(userEmail)}/meetings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      topic: input.topic,
+      type: 2,
+      start_time: input.startTime,
+      duration: input.duration,
+      ...(input.timezone ? { timezone: input.timezone } : {}),
+      settings: {
+        waiting_room: true,
+        join_before_host: false,
+      },
+    }),
+  })
+
+  const payload = await response.json() as CreatedZoomMeeting
+
+  if (typeof payload.id !== 'number' || typeof payload.join_url !== 'string') {
+    throw new Error('Zoom returned an incomplete meeting response')
+  }
+
+  return payload
+}
+
+export async function deleteZoomMeeting(meetingId: string) {
+  await requestZoom(`/meetings/${encodeURIComponent(meetingId)}`, {
+    method: 'DELETE',
+  })
 }
