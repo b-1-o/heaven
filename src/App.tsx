@@ -712,21 +712,26 @@ function MeetingsView() {
 
   useEffect(() => { void load() }, [])
 
-  const connected = integrations.some((item) => item.provider === provider)
-  const connectUrl = provider === 'zoom' ? '/api/integrations/zoom/start' : '/api/integrations/discord/start'
+  const connected = provider === 'zoom' || integrations.some((item) => item.provider === provider)
+  const connectUrl = provider === 'zoom' ? '/rooms' : '/api/integrations/discord/start'
 
   const create = async () => {
+    if (provider === 'zoom') {
+      window.location.href = '/rooms'
+      return
+    }
+
     setLoading(true)
     setNotice('')
     try {
-      const response = await fetch(`/api/meetings/${provider}`, {
+      const response = await fetch('/api/meetings/discord', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, startTime, durationMinutes: Number(duration) }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error ?? 'Meeting creation failed')
-      setNotice(`${provider === 'zoom' ? 'Zoom' : 'Discord'} meeting created`)
+      setNotice('Discord event created')
       setTitle('')
       if (data.joinUrl) window.open(data.joinUrl, '_blank', 'noopener,noreferrer')
     } catch (error) {
