@@ -665,7 +665,7 @@ kbd { border: 1px solid var(--border); background: rgba(0,0,0,.12); border-radiu
 @keyframes skeleton { from { opacity:.35; } to { opacity:.7; } }
 
 .meeting-setup { padding-bottom: 4px; }
-.meeting-form { display:grid; grid-template-columns: 1.7fr 1.2fr .6fr auto; gap:10px; padding:16px 17px; align-items:end; }
+.meeting-form { display:grid; grid-template-columns: minmax(0,1.7fr) minmax(0,1.2fr) minmax(90px,.6fr) minmax(150px,1fr) auto; gap:10px; padding:16px 17px; align-items:end; }
 .meeting-form label { display:grid; gap:6px; }
 .meeting-form label > span { color:var(--faint); text-transform:uppercase; letter-spacing:.11em; font-size:7px; }
 .meeting-input { height:35px; width:100%; border-radius:9px; border:1px solid var(--border); background:rgba(255,255,255,.035); color:var(--text); padding:0 9px; outline:none; font-size:9px; }
