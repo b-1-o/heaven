@@ -540,18 +540,20 @@ export function LiveMeetingsView() {
         }),
       })
 
+      const meeting: Meeting = {
+        id: 'local-' + Date.now(),
+        provider: 'discord',
+        title: data.title,
+        scheduled_at: data.startTime,
+        duration_minutes: data.durationMinutes,
+        join_url: data.joinUrl ?? null,
+        host_url: data.hostUrl ?? null,
+        metadata: {},
+      }
+
       setMeetings((current) => [
         ...current,
-        {
-          id: 'local-' + Date.now(),
-          provider: 'discord',
-          title: data.title,
-          scheduled_at: data.startTime,
-          duration_minutes: data.durationMinutes,
-          join_url: data.joinUrl ?? null,
-          host_url: data.hostUrl ?? null,
-          metadata: {},
-        },
+        meeting,
       ].sort((a, b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at)))
 
       setTitle('')
