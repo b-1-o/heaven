@@ -18,11 +18,8 @@ export class ZoomConfigurationError extends Error {
 }
 
 export class ZoomOAuthError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly apiMessage: string,
-  ) {
-    super(\`Zoom OAuth error: \${status} \${apiMessage}\`)
+  constructor(public readonly status: number, public readonly apiMessage: string) {
+    super('Zoom OAuth error: ' + status + ' ' + apiMessage)
     this.name = 'ZoomOAuthError'
   }
 }
@@ -33,7 +30,7 @@ export class ZoomApiError extends Error {
     public readonly apiMessage: string,
     public readonly responseBody: string,
   ) {
-    super(\`Zoom API error: \${status} \${apiMessage}\`)
+    super('Zoom API error: ' + status + ' ' + apiMessage)
     this.name = 'ZoomApiError'
   }
 }
@@ -57,7 +54,7 @@ function getZoomCredentials() {
   ].filter((value): value is string => Boolean(value))
 
   if (missing.length) {
-    throw new ZoomConfigurationError(\`Missing Zoom configuration: \${missing.join(', ')}.\`)
+    throw new ZoomConfigurationError('Missing Zoom configuration: ' + missing.join(', ') + '.')
   }
 
   return { accountId: accountId!, clientId: clientId!, clientSecret: clientSecret! }
@@ -88,7 +85,7 @@ export async function getZoomAccessToken(): Promise<string> {
   if (tokenRequest) return tokenRequest
 
   tokenRequest = (async () => {
-    const basic = Buffer.from(\`\${clientId}:\${clientSecret}\`).toString('base64')
+    const basic = Buffer.from(clientId + ':' + clientSecret).toString('base64')
     const form = new URLSearchParams({
       grant_type: 'account_credentials',
       account_id: accountId,
@@ -99,7 +96,7 @@ export async function getZoomAccessToken(): Promise<string> {
       response = await fetch('https://zoom.us/oauth/token', {
         method: 'POST',
         headers: {
-          Authorization: \`Basic \${basic}\`,
+          Authorization: 'Basic ' + basic,
           'Content-Type': 'application/x-www-form-urlencoded',
           Accept: 'application/json',
         },
@@ -167,16 +164,13 @@ function getZoomErrorMessage(body: string) {
   return body.trim().replace(/\s+/g, ' ').slice(0, 500) || 'Unknown Zoom error'
 }
 
-async function requestZoom(
-  path: string,
-  init: RequestInit = {},
-): Promise<Response> {
-  const url = \`https://api.zoom.us/v2\${path}\`
+async function requestZoom(path: string, init: RequestInit = {}): Promise<Response> {
+  const url = 'https://api.zoom.us/v2' + path
   let token = await getZoomAccessToken()
 
   const send = async () => {
     const headers = new Headers(init.headers)
-    headers.set('Authorization', \`Bearer \${token}\`)
+    headers.set('Authorization', 'Bearer ' + token)
     headers.set('Accept', 'application/json')
 
     try {
@@ -236,8 +230,9 @@ export type CreatedZoomMeeting = {
 
 export async function createZoomMeeting(input: CreateZoomMeetingInput): Promise<CreatedZoomMeeting> {
   const hostUserId = getZoomHostUserId()
+  const path = '/users/' + encodeURIComponent(hostUserId) + '/meetings'
 
-  const response = await requestZoom(\`/users/\${encodeURIComponent(hostUserId)}/meetings\`, {
+  const response = await requestZoom(path, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -265,7 +260,6 @@ export async function createZoomMeeting(input: CreateZoomMeetingInput): Promise<
 }
 
 export async function deleteZoomMeeting(meetingId: string) {
-  await requestZoom(\`/meetings/\${encodeURIComponent(meetingId)}\`, {
-    method: 'DELETE',
-  })
+  const path = '/meetings/' + encodeURIComponent(meetingId)
+  await requestZoom(path, { method: 'DELETE' })
 }
