@@ -181,26 +181,23 @@ export async function POST(request: Request) {
       await ensureSchema()
       const sql = getSql()
 
-      await sql\`
+      await sql`
         INSERT INTO heaven_meetings
           (id, org_id, provider, external_id, title, scheduled_at, duration_minutes, join_url, host_url, metadata)
         VALUES
           (
-            \${dbMeetingId},
-            \${workspaceId},
+            ${dbMeetingId},
+            ${workspaceId},
             'zoom',
-            \${String(meeting.id)},
-            \${topic},
-            \${parsedStartTime},
-            \${meeting.duration ?? duration},
-            \${meeting.join_url},
-            \${meeting.start_url ?? null},
-            \${JSON.stringify({
-              password: meeting.password ?? null,
-              authMode: 's2s',
-            })}::jsonb
+            ${String(meeting.id)},
+            ${topic},
+            ${parsedStartTime},
+            ${meeting.duration ?? duration},
+            ${meeting.join_url},
+            ${meeting.start_url ?? null},
+            ${JSON.stringify({ password: meeting.password ?? null, authMode: 's2s' })}::jsonb
           )
-      \`
+      `
     } catch (databaseError) {
       console.error('Failed to persist Zoom meeting in Neon', databaseError)
 
@@ -212,16 +209,13 @@ export async function POST(request: Request) {
         console.error('Failed to roll back Zoom meeting after database failure', rollbackError)
       }
 
-      return NextResponse.json(
-        {
-          error: rolledBack
-            ? 'Zoom created the meeting, but HEAVEN could not save it. The Zoom meeting was rolled back; please try again.'
-            : 'Zoom created the meeting, but HEAVEN could not save or remove it. Check your Zoom account before retrying to avoid creating a duplicate.',
-          meetingId: String(meeting.id),
-          rollback: rolledBack ? 'completed' : 'failed',
-        },
-        { status: 503, headers: { 'Cache-Control': 'no-store' } },
-      )
+      return NextResponse.json({
+        error: rolledBack
+          ? 'Zoom created the meeting, but HEAVEN could not save it. The Zoom meeting was rolled back; please try again.'
+          : 'Zoom created the meeting, but HEAVEN could not save or remove it. Check your Zoom account before retrying to avoid creating a duplicate.',
+        meetingId: String(meeting.id),
+        rollback: rolledBack ? 'completed' : 'failed',
+      }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
     }
 
     return NextResponse.json({
