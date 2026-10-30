@@ -61,12 +61,12 @@ Open the [Zoom App Marketplace](https://marketplace.zoom.us/) and:
    - **Account ID**
    - **Client ID**
    - **Client Secret**
-5. Under **Scopes**, add:
-   - `meeting:write:admin`
-   - `meeting:read:admin`
-   - `meeting:delete:admin`
-   - `user:read:admin`
+5. Under **Scopes**, add the scopes used by HEAVEN:
+   - `meeting:write:admin` — create meetings.
+   - `meeting:delete:admin` — delete meetings.
 6. Activate the application.
+
+HEAVEN lists saved meetings from its workspace database and does not call Zoom's user-list or meeting-list APIs, so extra read scopes are not needed by the current integration.
 
 Zoom Server-to-Server OAuth uses the `account_credentials` grant to obtain an access token for server-side API requests. S2S OAuth does not use a refresh token; when the access token expires, HEAVEN requests a new one from `/oauth/token`.
 
@@ -80,10 +80,13 @@ For local development, add the following to `.env.local`:
 ZOOM_ACCOUNT_ID=your-zoom-account-id
 ZOOM_CLIENT_ID=your-zoom-client-id
 ZOOM_CLIENT_SECRET=your-zoom-client-secret
-ZOOM_USER_EMAIL=owner@example.com
+# Preferred: Zoom user ID for the meeting host.
+ZOOM_USER_ID=your-zoom-user-id
+# Alternatively, use the host user's email instead.
+# ZOOM_USER_EMAIL=owner@example.com
 ```
 
-`ZOOM_USER_EMAIL` is the **email address of the Zoom account owner/user on whose account the meetings should be created**.
+Set `ZOOM_USER_ID` to the Zoom user ID that will host meetings. You can alternatively set `ZOOM_USER_EMAIL` to that user's email address; `ZOOM_USER_ID` takes precedence when both are configured. The host user must belong to the same Zoom account as the Server-to-Server OAuth app and be allowed to schedule meetings.
 
 Never use `NEXT_PUBLIC_` for Zoom credentials and never commit real secrets to Git.
 
@@ -100,11 +103,14 @@ Add:
 | `ZOOM_ACCOUNT_ID` | Account ID from Zoom Marketplace | Config |
 | `ZOOM_CLIENT_ID` | Client ID from Zoom Marketplace | Config |
 | `ZOOM_CLIENT_SECRET` | Client Secret from Zoom Marketplace | **Secret** |
-| `ZOOM_USER_EMAIL` | Email address of the Zoom account owner/user | Config |
+| `ZOOM_USER_ID` | Zoom user ID that will host meetings (preferred) | Config |
+| `ZOOM_USER_EMAIL` | Backwards-compatible alternative to ZOOM_USER_ID | Config |
 
 Choose the environments where the app should have access to them: **Production**, **Preview**, and/or **Development**.
 
 After changing environment variables, create a **new deployment / redeploy** so the new runtime receives the updated values.
+
+After deployment, sign in to HEAVEN and open `/api/zoom/status`. This authenticated diagnostic endpoint reports which required settings are present and whether Zoom accepts the Server-to-Server credentials. It never returns the client secret or access token. A valid token confirms OAuth authentication; the Create Meeting API separately verifies the selected host user's meeting permissions.
 
 ### 4. How meeting creation works
 

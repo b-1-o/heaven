@@ -226,10 +226,16 @@ function openZoomUrl(joinUrl: string, onNotify?: (message: string) => void) {
   return false
 }
 
-function openZoomMeeting(meetingNumber: string, password = '', onNotify?: (message: string) => void) {
+function openZoomMeeting(
+  meetingNumber: string,
+  password = '',
+  onNotify?: (message: string) => void,
+  preferredJoinUrl?: string | null,
+) {
   const cleanMeetingNumber = meetingNumber.replace(/\s/g, '')
-  const params = password ? `?${new URLSearchParams({ pwd: password }).toString()}` : ''
-  const joinUrl = `https://zoom.us/j/${encodeURIComponent(cleanMeetingNumber)}${params}`
+  const params = password ? '?' + new URLSearchParams({ pwd: password }).toString() : ''
+  const fallbackUrl = 'https://zoom.us/j/' + encodeURIComponent(cleanMeetingNumber) + params
+  const joinUrl = preferredJoinUrl?.startsWith('https://') ? preferredJoinUrl : fallbackUrl
 
   openZoomUrl(joinUrl, onNotify)
   return joinUrl
@@ -257,14 +263,13 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
   const [createdMeeting, setCreatedMeeting] = useState<{ id: string; join_url: string; password: string | null; topic: string } | null>(null)
   const [creatingMeeting, setCreatingMeeting] = useState(false)
   const [zoomError, setZoomError] = useState('')
+  const [meetingLoadError, setMeetingLoadError] = useState('')
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null)
 
 
   useEffect(() => {
     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone
-    if (TIMEZONE_OPTIONS.some((item) => item.value === detected)) {
-      setTimezone(detected)
-    }
+    if (detected) setTimezone(detected)
   }, [])
 
   useEffect(() => {
@@ -279,8 +284,11 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
 
       try {
         const response = await fetch('/api/meetings', { cache: 'no-store' })
-        const data = await response.json()
-        if (!response.ok || cancelled) return
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(typeof data.error === 'string' ? data.error : 'Could not load saved Zoom meetings')
+        }
+        if (cancelled) return
 
         const liveZoomRooms: Room[] = (data.meetings ?? [])
           .filter((meeting: { provider?: string; external_id?: string | null }) => meeting.provider === 'zoom' && meeting.external_id)
@@ -308,15 +316,20 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
             zoomJoinUrl: meeting.join_url ?? undefined,
           }))
 
-        if (liveZoomRooms.length) {
-          setRooms((current) => {
-            const localOnly = current.filter((room) => !room.zoomMeetingNumber)
-            return [...liveZoomRooms, ...localOnly]
-          })
-          setSelectedRoomId((current) => liveZoomRooms.some((room) => room.id === current) ? current : liveZoomRooms[0].id)
+        setMeetingLoadError('')
+        setRooms((current) => {
+          const previewRooms = current.filter((room) => !room.zoomMeetingNumber)
+          return [...liveZoomRooms, ...previewRooms]
+        })
+        setSelectedRoomId((current) =>
+          liveZoomRooms.some((room) => room.id === current)
+            ? current
+            : liveZoomRooms[0]?.id ?? 'room-01',
+        )
+      } catch (error) {
+        if (!cancelled) {
+          setMeetingLoadError(error instanceof Error ? error.message : 'Could not load saved Zoom meetings')
         }
-      } catch {
-        // Preview rooms remain available when the live meeting API is unavailable.
       }
     }
 
@@ -342,7 +355,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
 
     if (activeRoom.zoomMeetingNumber) {
       onNotify('Opening ' + activeRoom.name + ' in Zoom')
-      openZoomMeeting(activeRoom.zoomMeetingNumber, activeRoom.zoomPassword, onNotify)
+      openZoomMeeting(activeRoom.zoomMeetingNumber, activeRoom.zoomPassword, onNotify, activeRoom.zoomJoinUrl)
       return
     }
 
@@ -399,9 +412,10 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
       }
 
       const meetingNumber = String(data.id)
-      const joinUrl = typeof data.join_url === 'string'
-        ? data.join_url
-        : `https://zoom.us/j/${encodeURIComponent(meetingNumber)}${data.password ? '?' + new URLSearchParams({ pwd: String(data.password) }).toString() : ''}`
+      if (typeof data.join_url !== 'string' || !data.join_url.startsWith('https://')) {
+        throw new Error('Zoom did not return a valid meeting link. Check the Zoom API response.')
+      }
+      const joinUrl = data.join_url
       const password = typeof data.password === 'string' ? data.password : null
       const scheduledAt = new Date(data.startTime ?? startTime)
       const isLive = Number.isFinite(scheduledAt.getTime()) && scheduledAt.getTime() <= Date.now()
@@ -497,6 +511,8 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
         </div>
       </div>
 
+      {meetingLoadError ? <div className="meeting-notice">Saved meetings could not be loaded: {meetingLoadError}</div> : null}
+
       {composerOpen ? (
         <section className="panel room-composer">
           <div>
@@ -551,6 +567,9 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
                 {TIMEZONE_OPTIONS.map((item) => (
                   <option value={item.value} key={item.value}>{item.label}</option>
                 ))}
+                {!TIMEZONE_OPTIONS.some((item) => item.value === timezone) ? (
+                  <option value={timezone} key={timezone}>{timezone.replace(/_/g, ' ')}</option>
+                ) : null}
               </select>
             </label>
             <div className="meeting-submit">
@@ -612,7 +631,7 @@ export function ConferenceRoomsView({ onView, onNotify }: { onView: (view: 'meet
                 <Video size={22} />
                 <strong>Zoom is opening</strong>
                 <span>The conference will continue in Zoom in your browser or app.</span>
-                <button className="glass-button solid" onClick={() => openZoomMeeting(activeRoom.zoomMeetingNumber!, activeRoom.zoomPassword, onNotify)}>
+                <button className="glass-button solid" onClick={() => openZoomMeeting(activeRoom.zoomMeetingNumber!, activeRoom.zoomPassword, onNotify, activeRoom.zoomJoinUrl)}>
                   <ExternalLink size={14} /> Reopen Zoom
                 </button>
               </div>

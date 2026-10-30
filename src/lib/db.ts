@@ -14,7 +14,7 @@ export function getSql() {
 export async function ensureSchema() {
   if (schemaPromise) return schemaPromise
   const sql = getSql()
-  schemaPromise = (async () => {
+  const initialization = (async () => {
     await sql`
       CREATE TABLE IF NOT EXISTS heaven_integrations (
         org_id TEXT NOT NULL,
@@ -80,5 +80,12 @@ export async function ensureSchema() {
     await sql`CREATE INDEX IF NOT EXISTS heaven_activity_org_idx ON heaven_activity(org_id, occurred_at DESC)`
 
   })()
+
+  schemaPromise = initialization.catch((error) => {
+    // A transient Neon/database outage must not poison this server instance forever.
+    schemaPromise = null
+    throw error
+  })
+
   return schemaPromise
 }

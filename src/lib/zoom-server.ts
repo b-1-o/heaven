@@ -10,13 +10,30 @@ type CachedToken = {
   expiresAt: number
 }
 
+export class ZoomConfigurationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ZoomConfigurationError'
+  }
+}
+
+export class ZoomOAuthError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly apiMessage: string,
+  ) {
+    super(\`Zoom OAuth error: \${status} \${apiMessage}\`)
+    this.name = 'ZoomOAuthError'
+  }
+}
+
 export class ZoomApiError extends Error {
   constructor(
     public readonly status: number,
     public readonly apiMessage: string,
     public readonly responseBody: string,
   ) {
-    super(`Zoom API error: ${status} ${apiMessage}`)
+    super(\`Zoom API error: \${status} \${apiMessage}\`)
     this.name = 'ZoomApiError'
   }
 }
@@ -28,18 +45,42 @@ export function clearZoomAccessTokenCache() {
   cachedToken = null
 }
 
-export async function getZoomAccessToken(): Promise<string> {
-  const accountId = process.env.ZOOM_ACCOUNT_ID
-  const clientId = process.env.ZOOM_CLIENT_ID
-  const clientSecret = process.env.ZOOM_CLIENT_SECRET
+function getZoomCredentials() {
+  const accountId = process.env.ZOOM_ACCOUNT_ID?.trim()
+  const clientId = process.env.ZOOM_CLIENT_ID?.trim()
+  const clientSecret = process.env.ZOOM_CLIENT_SECRET?.trim()
 
-  if (!accountId || !clientId || !clientSecret) {
-    throw new Error(
-      'Zoom Server-to-Server OAuth is not configured. Set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET.',
-    )
+  const missing = [
+    !accountId ? 'ZOOM_ACCOUNT_ID' : null,
+    !clientId ? 'ZOOM_CLIENT_ID' : null,
+    !clientSecret ? 'ZOOM_CLIENT_SECRET' : null,
+  ].filter((value): value is string => Boolean(value))
+
+  if (missing.length) {
+    throw new ZoomConfigurationError(\`Missing Zoom configuration: \${missing.join(', ')}.\`)
   }
 
+  return { accountId: accountId!, clientId: clientId!, clientSecret: clientSecret! }
+}
+
+export function getZoomHostUserId() {
+  const userId = process.env.ZOOM_USER_ID?.trim() || process.env.ZOOM_USER_EMAIL?.trim()
+
+  if (!userId) {
+    throw new ZoomConfigurationError('Set ZOOM_USER_ID or ZOOM_USER_EMAIL to select the Zoom meeting host.')
+  }
+
+  if (userId.length > 254 || /\s/.test(userId)) {
+    throw new ZoomConfigurationError('ZOOM_USER_ID / ZOOM_USER_EMAIL must be a valid Zoom user ID or email address.')
+  }
+
+  return userId
+}
+
+export async function getZoomAccessToken(): Promise<string> {
+  const { accountId, clientId, clientSecret } = getZoomCredentials()
   const refreshWindow = 60_000
+
   if (cachedToken && cachedToken.expiresAt > Date.now() + refreshWindow) {
     return cachedToken.accessToken
   }
@@ -47,38 +88,44 @@ export async function getZoomAccessToken(): Promise<string> {
   if (tokenRequest) return tokenRequest
 
   tokenRequest = (async () => {
-    const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-    const tokenUrl = new URL('https://zoom.us/oauth/token')
-    tokenUrl.searchParams.set('grant_type', 'account_credentials')
-    tokenUrl.searchParams.set('account_id', accountId)
-
-    const response = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${basic}`,
-      },
-      cache: 'no-store',
+    const basic = Buffer.from(\`\${clientId}:\${clientSecret}\`).toString('base64')
+    const form = new URLSearchParams({
+      grant_type: 'account_credentials',
+      account_id: accountId,
     })
+
+    let response: Response
+    try {
+      response = await fetch('https://zoom.us/oauth/token', {
+        method: 'POST',
+        headers: {
+          Authorization: \`Basic \${basic}\`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: form.toString(),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(15_000),
+      })
+    } catch {
+      throw new ZoomOAuthError(502, 'Could not reach Zoom OAuth. Check the server network and try again.')
+    }
 
     const body = await response.text()
 
     if (!response.ok) {
-      console.error('Zoom OAuth token request failed', {
-        status: response.status,
-        body,
-      })
-      throw new Error('Zoom OAuth token request failed')
+      throw new ZoomOAuthError(response.status, getZoomErrorMessage(body))
     }
 
     let payload: ZoomTokenResponse = {}
     try {
       payload = JSON.parse(body) as ZoomTokenResponse
     } catch {
-      throw new Error('Zoom OAuth token response was invalid')
+      throw new ZoomOAuthError(502, 'Zoom returned an invalid token response.')
     }
 
     if (!payload.access_token) {
-      throw new Error('Zoom OAuth token response did not include an access token')
+      throw new ZoomOAuthError(502, 'Zoom token response did not include an access token.')
     }
 
     const expiresIn = typeof payload.expires_in === 'number' && payload.expires_in > 0
@@ -114,73 +161,56 @@ function getZoomErrorMessage(body: string) {
       }
     }
   } catch {
-    // Fall back to the raw response body below.
+    // Fall back to a short plain-text response below.
   }
 
-  return body.trim().replace(/\s+/g, ' ').slice(0, 500) || 'Unknown Zoom API error'
+  return body.trim().replace(/\s+/g, ' ').slice(0, 500) || 'Unknown Zoom error'
 }
 
 async function requestZoom(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const userEmail = process.env.ZOOM_USER_EMAIL?.trim()
-
-  if (!userEmail) {
-    throw new Error('ZOOM_USER_EMAIL is not configured')
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
-    throw new Error('ZOOM_USER_EMAIL is invalid')
-  }
-
-  const url = `https://api.zoom.us/v2${path}`
+  const url = \`https://api.zoom.us/v2\${path}\`
   let token = await getZoomAccessToken()
 
-  const send = async () =>
-    fetch(url, {
-      ...init,
-      headers: {
-        ...(init.headers ?? {}),
-        Authorization: `Bearer ${token}`,
-      },
-      cache: 'no-store',
-    })
+  const send = async () => {
+    const headers = new Headers(init.headers)
+    headers.set('Authorization', \`Bearer \${token}\`)
+    headers.set('Accept', 'application/json')
+
+    try {
+      return await fetch(url, {
+        ...init,
+        headers,
+        cache: 'no-store',
+        signal: init.signal ?? AbortSignal.timeout(20_000),
+      })
+    } catch {
+      throw new ZoomApiError(502, 'Could not reach the Zoom API.', '')
+    }
+  }
 
   let response = await send()
 
   if (response.status === 401) {
     const firstResponseBody = await response.text()
-
-    console.error('Zoom API request failed', {
-      status: 401,
-      path,
-      body: firstResponseBody,
-      retrying: true,
-    })
-
     clearZoomAccessTokenCache()
 
     try {
       token = await getZoomAccessToken()
-    } catch {
-      throw new ZoomApiError(401, getZoomErrorMessage(firstResponseBody), firstResponseBody)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Token renewal failed'
+      throw new ZoomApiError(401, message, firstResponseBody)
     }
 
+    // Retry the original request exactly once with the newly issued token.
     response = await send()
   }
 
   if (!response.ok) {
     const responseBody = await response.text()
-    const message = getZoomErrorMessage(responseBody)
-
-    console.error('Zoom API request failed', {
-      status: response.status,
-      path,
-      body: responseBody,
-    })
-
-    throw new ZoomApiError(response.status, message, responseBody)
+    throw new ZoomApiError(response.status, getZoomErrorMessage(responseBody), responseBody)
   }
 
   return response
@@ -205,9 +235,9 @@ export type CreatedZoomMeeting = {
 }
 
 export async function createZoomMeeting(input: CreateZoomMeetingInput): Promise<CreatedZoomMeeting> {
-  const userEmail = process.env.ZOOM_USER_EMAIL!.trim()
+  const hostUserId = getZoomHostUserId()
 
-  const response = await requestZoom(`/users/${encodeURIComponent(userEmail)}/meetings`, {
+  const response = await requestZoom(\`/users/\${encodeURIComponent(hostUserId)}/meetings\`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -227,15 +257,15 @@ export async function createZoomMeeting(input: CreateZoomMeetingInput): Promise<
 
   const payload = await response.json() as CreatedZoomMeeting
 
-  if (typeof payload.id !== 'number' || typeof payload.join_url !== 'string') {
-    throw new Error('Zoom returned an incomplete meeting response')
+  if (typeof payload.id !== 'number' || typeof payload.join_url !== 'string' || !payload.join_url.startsWith('https://')) {
+    throw new ZoomApiError(502, 'Zoom returned an incomplete meeting response.', JSON.stringify(payload))
   }
 
   return payload
 }
 
 export async function deleteZoomMeeting(meetingId: string) {
-  await requestZoom(`/meetings/${encodeURIComponent(meetingId)}`, {
+  await requestZoom(\`/meetings/\${encodeURIComponent(meetingId)}\`, {
     method: 'DELETE',
   })
 }
