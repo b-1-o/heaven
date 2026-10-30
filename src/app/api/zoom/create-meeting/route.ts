@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { ensureSchema, getSql } from '@/lib/db'
 import { getWorkspaceId } from '@/lib/workspace'
-import { createZoomMeeting, ZoomApiError } from '@/lib/zoom-server'
+import { createZoomMeeting, deleteZoomMeeting, ZoomApiError, ZoomConfigurationError, ZoomOAuthError } from '@/lib/zoom-server'
 
 export const runtime = 'nodejs'
 
@@ -176,35 +176,52 @@ export async function POST(request: Request) {
     })
 
     const dbMeetingId = randomUUID()
-    let persisted = false
 
     try {
       await ensureSchema()
       const sql = getSql()
 
-      await sql`
+      await sql\`
         INSERT INTO heaven_meetings
           (id, org_id, provider, external_id, title, scheduled_at, duration_minutes, join_url, host_url, metadata)
         VALUES
           (
-            ${dbMeetingId},
-            ${workspaceId},
+            \${dbMeetingId},
+            \${workspaceId},
             'zoom',
-            ${String(meeting.id)},
-            ${topic},
-            ${parsedStartTime},
-            ${meeting.duration ?? duration},
-            ${meeting.join_url},
-            ${meeting.start_url ?? null},
-            ${JSON.stringify({
+            \${String(meeting.id)},
+            \${topic},
+            \${parsedStartTime},
+            \${meeting.duration ?? duration},
+            \${meeting.join_url},
+            \${meeting.start_url ?? null},
+            \${JSON.stringify({
               password: meeting.password ?? null,
               authMode: 's2s',
             })}::jsonb
           )
-      `
-      persisted = true
+      \`
     } catch (databaseError) {
-      console.error('Failed to persist Zoom meeting locally', databaseError)
+      console.error('Failed to persist Zoom meeting in Neon', databaseError)
+
+      let rolledBack = false
+      try {
+        await deleteZoomMeeting(String(meeting.id))
+        rolledBack = true
+      } catch (rollbackError) {
+        console.error('Failed to roll back Zoom meeting after database failure', rollbackError)
+      }
+
+      return NextResponse.json(
+        {
+          error: rolledBack
+            ? 'Zoom created the meeting, but HEAVEN could not save it. The Zoom meeting was rolled back; please try again.'
+            : 'Zoom created the meeting, but HEAVEN could not save or remove it. Check your Zoom account before retrying to avoid creating a duplicate.',
+          meetingId: String(meeting.id),
+          rollback: rolledBack ? 'completed' : 'failed',
+        },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      )
     }
 
     return NextResponse.json({
@@ -215,22 +232,18 @@ export async function POST(request: Request) {
       startTime: meeting.start_time ?? parsedStartTime.toISOString(),
       duration: meeting.duration ?? duration,
       timezone: timezone ?? meeting.timezone ?? null,
-      dbId: persisted ? dbMeetingId : null,
-    })
+      dbId: dbMeetingId,
+    }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
-    if (error instanceof ZoomApiError) {
-      return errorResponse(error.message, 502)
-    }
-
-    if (error instanceof Error && (
-      error.message.startsWith('Zoom Server-to-Server OAuth is not configured') ||
-      error.message === 'ZOOM_USER_EMAIL is not configured' ||
-      error.message === 'ZOOM_USER_EMAIL is invalid'
-    )) {
+    if (error instanceof ZoomConfigurationError) {
       return errorResponse(error.message, 503)
     }
 
+    if (error instanceof ZoomOAuthError || error instanceof ZoomApiError) {
+      return errorResponse(error.message, 502)
+    }
+
     console.error('Zoom create-meeting error', error)
-    return errorResponse('Failed to create Zoom meeting', 500)
+    return errorResponse('Unexpected server error while creating the Zoom meeting. Check the HEAVEN runtime logs.', 500)
   }
 }
